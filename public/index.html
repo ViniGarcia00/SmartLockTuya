@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Sistema Tuya Locks</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 260px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 0;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.1);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            margin-bottom: 20px;
+        }
+
+        .sidebar-header h1 {
+            font-size: 22px;
+            margin-bottom: 5px;
+        }
+
+        .sidebar-header p {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+        }
+
+        .sidebar-menu a {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            color: white;
+            text-decoration: none;
+            transition: all 0.3s;
+            border-left: 4px solid transparent;
+            cursor: pointer;
+        }
+
+        .sidebar-menu a:hover {
+            background: rgba(255,255,255,0.1);
+            border-left-color: white;
+        }
+
+        .sidebar-menu a.active {
+            background: rgba(255,255,255,0.2);
+            border-left-color: white;
+        }
+
+        .sidebar-menu a .icon {
+            font-size: 20px;
+            margin-right: 12px;
+        }
+
+        .main-content {
+            margin-left: 260px;
+            flex: 1;
+            padding: 30px;
+        }
+
+        .page {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .page-header {
+            margin-bottom: 30px;
+        }
+
+        .page-header h2 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            padding: 25px;
+            margin-bottom: 20px;
+            transition: background-color 0.3s;
+        }
+
+        .card.low-battery {
+            background: #ffe6e6;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .status-row:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .status-value {
+            font-weight: bold;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 2px solid #667eea;
+            color: #667eea;
+        }
+
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .alert {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            min-width: 300px;
+            max-width: 400px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            animation: slideInRight 0.3s ease;
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .alert.fade-out {
+            animation: slideOutRight 0.3s ease forwards;
+        }
+
+        @keyframes slideOutRight {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+        }
+
+        .popup-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .popup-overlay.show {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .popup-content {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            animation: slideUp 0.3s ease;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .password-item {
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .password-info {
+            flex: 1;
+        }
+
+        .password-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .password-details {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .password-code {
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin: 0 5px;
+            font-weight: bold;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .warning-box strong {
+            color: #856404;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .warning-box p {
+            color: #856404;
+            font-size: 13px;
+            margin: 0;
+        }
+
+        .warning-box a {
+            color: #667eea;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h1>🔐 Tuya Locks</h1>
+            <p id="user-name">Bem-vindo!</p>
+        </div>
+        <ul class="sidebar-menu">
+            <li>
+                <a href="#" class="active" onclick="showPage('home')">
+                    <span class="icon">🏠</span>
+                    <span>Página Inicial</span>
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="showPage('passwords')">
+                    <span class="icon">🔑</span>
+                    <span>Senhas</span>
+                </a>
+            </li>
+            <li>
+                <a href="settings.html">
+                    <span class="icon">⚙️</span>
+                    <span>Configurações</span>
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="logout()">
+                    <span class="icon">🚪</span>
+                    <span>Sair</span>
+                </a>
+            </li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <!-- Página Inicial -->
+        <div id="page-home" class="page active">
+            <div class="page-header">
+                <h2>Página Inicial</h2>
+                <p>Monitore e controle suas fechaduras inteligentes</p>
+            </div>
+
+            <div id="config-warning" class="warning-box" style="display: none;">
+                <strong>⚠️ Configuração Necessária</strong>
+                <p>Configure suas credenciais Tuya para começar a usar o sistema. 
+                   <a href="settings.html#tuya">Clique aqui para configurar</a>
+                </p>
+            </div>
+
+            <div class="card">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>🔐 Selecione a Fechadura</label>
+                    <select id="lock-selector" onchange="switchLock()">
+                        <option value="">Carregando...</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="openTempPasswordModal()" style="width: 100%; margin-bottom: 20px;">
+                🔑 Criar Senha Temporária
+            </button>
+
+            <div class="card" id="status-card">
+                <div class="card-title">Status do Dispositivo</div>
+                <div class="status-row">
+                    <span class="status-label">Status da Conexão</span>
+                    <span class="status-value" id="connection-status">
+                        <span class="badge badge-warning">Aguardando...</span>
+                    </span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">Bateria</span>
+                    <span class="status-value" id="battery-status">--</span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">Senhas Temporárias Ativas</span>
+                    <span class="status-value" id="active-passwords-count">--</span>
+                </div>
+            </div>
+
+            <button class="btn btn-secondary" onclick="refreshStatus()" style="width: 100%;">
+                🔄 Atualizar Status
+            </button>
+        </div>
+
+        <!-- Página de Senhas -->
+        <div id="page-passwords" class="page">
+            <div class="page-header">
+                <h2>Senhas Temporárias</h2>
+                <p>Gerencie as senhas cadastradas na fechadura</p>
+            </div>
+
+            <button class="btn btn-primary" onclick="openTempPasswordModal()" style="width: 100%; margin-bottom: 20px;">
+                ➕ Nova Senha Temporária
+            </button>
+
+            <div class="card">
+                <div class="card-title">
+                    <span>Senhas Cadastradas</span>
+                    <button class="btn btn-secondary" onclick="loadTempPasswords()" style="padding: 8px 16px; font-size: 12px;">
+                        🔄 Atualizar
+                    </button>
+                </div>
+                <div id="passwords-list">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <p>Carregando senhas...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal de Senha Temporária -->
+    <div class="popup-overlay" id="temp-password-modal">
+        <div class="popup-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; color: #333;">🔑 Nova Senha Temporária</h3>
+                <button onclick="closeTempPasswordModal()" style="background: transparent; border: none; font-size: 24px; cursor: pointer; color: #999;">×</button>
+            </div>
+
+            <div class="form-group">
+                <label>Nome da Senha *</label>
+                <input type="text" id="modal-pwd-name" placeholder="Ex: Entregador, Diarista, Visita">
+            </div>
+
+            <div class="form-group">
+                <label>Senha (7 dígitos) *</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="modal-pwd-code" placeholder="1234567" maxlength="7" pattern="[0-9]{7}" style="flex: 1;">
+                    <button class="btn btn-secondary" onclick="generateRandomPassword()">
+                        🎲 Gerar
+                    </button>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="form-group">
+                    <label>Data de Início *</label>
+                    <input type="date" id="modal-pwd-start-date">
+                </div>
+                <div class="form-group">
+                    <label>Hora de Início</label>
+                    <input type="time" id="modal-pwd-start-time" value="08:00">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="form-group">
+                    <label>Data de Fim *</label>
+                    <input type="date" id="modal-pwd-end-date">
+                </div>
+                <div class="form-group">
+                    <label>Hora de Fim</label>
+                    <input type="time" id="modal-pwd-end-time" value="18:00">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-primary" onclick="createTempPassword()" style="flex: 1;">
+                    📤 Criar Senha
+                </button>
+                <button class="btn btn-secondary" onclick="closeTempPasswordModal()">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="alert-container"></div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+        
+        let config = {
+            deviceId: null
+        };
+
+        let locks = [];
+        let currentPasswords = [];
+        let alertQueue = [];
+        let isShowingAlert = false;
+        let currentUser = null;
+
+        // Verifica autenticação
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            if (!token || !user) {
+                window.location.href = 'login.html';
+                return false;
+            }
+            
+            currentUser = JSON.parse(user);
+            document.getElementById('user-name').textContent = `Olá, ${currentUser.nome.split(' ')[0]}!`;
+            return true;
+        }
+
+        // Headers com token
+        function getHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            };
+        }
+
+        // Logout
+        function logout() {
+            if (confirm('Deseja realmente sair?')) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                localStorage.removeItem('currentLockId');
+                window.location.href = 'login.html';
+            }
+        }
+
+        // Carrega fechaduras do servidor
+        async function loadLocks() {
+            try {
+                const response = await fetch(`${API_URL}/locks`, {
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                
+                if (response.status === 400 && data.redirect) {
+                    // Usuário sem config Tuya
+                    document.getElementById('config-warning').style.display = 'block';
+                    document.getElementById('lock-selector').innerHTML = '<option value="">Configure sua conta Tuya primeiro</option>';
+                    return false;
+                }
+                
+                if (data.success && data.result.length > 0) {
+                    locks = data.result;
+                    updateLockSelector();
+                    
+                    const saved = localStorage.getItem('currentLockId');
+                    if (saved && locks.find(l => l.id === saved)) {
+                        config.deviceId = saved;
+                    } else {
+                        config.deviceId = locks[0].id;
+                    }
+                    
+                    document.getElementById('config-warning').style.display = 'none';
+                    return true;
+                } else {
+                    document.getElementById('lock-selector').innerHTML = '<option value="">Nenhuma fechadura cadastrada</option>';
+                    showAlert('⚠️ Adicione fechaduras em Configurações', 'error');
+                    return false;
+                }
+            } catch (err) {
+                console.error('Erro ao carregar fechaduras:', err);
+                
+                if (err.message && err.message.includes('401')) {
+                    showAlert('❌ Sessão expirada. Faça login novamente.', 'error');
+                    setTimeout(() => {
+                        logout();
+                    }, 2000);
+                } else {
+                    showAlert('❌ Erro ao carregar fechaduras', 'error');
+                }
+                return false;
+            }
+        }
+
+        function updateLockSelector() {
+            const selector = document.getElementById('lock-selector');
+            
+            if (locks.length === 0) {
+                selector.innerHTML = '<option value="">Nenhuma fechadura configurada</option>';
+                return;
+            }
+            
+            selector.innerHTML = locks.map(lock => 
+                `<option value="${lock.id}" ${lock.id === config.deviceId ? 'selected' : ''}>
+                    ${lock.name} - ${lock.location}
+                </option>`
+            ).join('');
+        }
+
+        function switchLock() {
+            const selector = document.getElementById('lock-selector');
+            config.deviceId = selector.value;
+            localStorage.setItem('currentLockId', config.deviceId);
+            
+            const lock = locks.find(l => l.id === config.deviceId);
+            showAlert(`🔄 Fechadura alterada: ${lock.name}`, 'success');
+            
+            refreshStatus();
+            
+            if (document.getElementById('page-passwords').classList.contains('active')) {
+                loadTempPasswords();
+            }
+        }
+
+        async function init() {
+            if (!checkAuth()) return;
+            
+            const hasLocks = await loadLocks();
+            if (hasLocks) {
+                refreshStatus();
+            }
+            setDefaultDates();
+            
+            // Verifica hash na URL
+            if (window.location.hash === '#passwords') {
+                showPage('passwords');
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', init);
+
+        function setDefaultDates() {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - 1);
+            const startDate = now.toISOString().split('T')[0];
+            const startTime = now.toTimeString().substring(0, 5);
+            
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const endDate = tomorrow.toISOString().split('T')[0];
+            const endTime = '18:00';
+            
+            document.getElementById('modal-pwd-start-date').value = startDate;
+            document.getElementById('modal-pwd-start-time').value = startTime;
+            document.getElementById('modal-pwd-end-date').value = endDate;
+            document.getElementById('modal-pwd-end-time').value = endTime;
+        }
+
+        function openTempPasswordModal() {
+            if (!config.deviceId) {
+                showAlert('❌ Selecione uma fechadura primeiro', 'error');
+                return;
+            }
+            
+            setDefaultDates();
+            generateRandomPassword();
+            document.getElementById('temp-password-modal').classList.add('show');
+        }
+
+        function closeTempPasswordModal() {
+            document.getElementById('temp-password-modal').classList.remove('show');
+            document.getElementById('modal-pwd-name').value = '';
+            document.getElementById('modal-pwd-code').value = '';
+        }
+
+        function generateRandomPassword() {
+            const password = Math.floor(1000000 + Math.random() * 9000000).toString();
+            document.getElementById('modal-pwd-code').value = password;
+        }
+
+        async function createTempPassword() {
+            const name = document.getElementById('modal-pwd-name').value;
+            const code = document.getElementById('modal-pwd-code').value;
+            const startDate = document.getElementById('modal-pwd-start-date').value;
+            const startTime = document.getElementById('modal-pwd-start-time').value;
+            const endDate = document.getElementById('modal-pwd-end-date').value;
+            const endTime = document.getElementById('modal-pwd-end-time').value;
+
+            if (!name || !code || !startDate || !endDate) {
+                showAlert('❌ Preencha todos os campos obrigatórios', 'error');
+                return;
+            }
+
+            if (code.length !== 7 || !/^\d+$/.test(code)) {
+                showAlert('❌ A senha deve conter exatamente 7 dígitos', 'error');
+                return;
+            }
+
+            const lock = locks.find(l => l.id === config.deviceId);
+            showAlert(`📤 Criando senha em ${lock.name}...`, 'success');
+
+            try {
+                const response = await fetch(`${API_URL}/device/${config.deviceId}/temp-password`, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({ 
+                        name, 
+                        password: code,
+                        startDate, 
+                        startTime, 
+                        endDate, 
+                        endTime 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    closeTempPasswordModal();
+                    showAlert(`✅ Senha ${code} criada com sucesso!`, 'success');
+                    
+                    setTimeout(() => {
+                        showAlert(`⏳ A fechadura está sincronizando a senha...`, 'success');
+                    }, 2000);
+                    
+                    setTimeout(() => {
+                        showAlert(`💡 A senha estará ativa em até 5 minutos`, 'success');
+                    }, 4000);
+                    
+                    if (document.getElementById('page-passwords').classList.contains('active')) {
+                        setTimeout(() => loadTempPasswords(), 6000);
+                    }
+                } else {
+                    const errorMsg = data.error?.msg || data.msg || 'Falha ao criar senha';
+                    showAlert(`❌ ${errorMsg}`, 'error');
+                }
+            } catch (err) {
+                console.error('Erro:', err);
+                showAlert(`❌ Erro ao criar senha`, 'error');
+            }
+        }
+
+        async function loadTempPasswords() {
+            if (!config.deviceId) return;
+            
+            const container = document.getElementById('passwords-list');
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="loading" style="border-color: #667eea; border-top-color: transparent; width: 40px; height: 40px;"></div>
+                    <p style="margin-top: 15px;">Carregando senhas...</p>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`${API_URL}/device/${config.deviceId}/temp-passwords`, {
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.success && data.result && data.result.length > 0) {
+                    currentPasswords = data.result;
+                    displayPasswords(data.result);
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🔑</div>
+                            <p>Nenhuma senha temporária cadastrada</p>
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                console.error('Erro ao carregar senhas:', err);
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">❌</div>
+                        <p>Erro ao carregar senhas</p>
+                    </div>
+                `;
+                showAlert('❌ Erro ao carregar senhas', 'error');
+            }
+        }
+
+        function displayPasswords(passwords) {
+            const container = document.getElementById('passwords-list');
+            
+            container.innerHTML = passwords.map(pwd => {
+                const startDate = new Date(pwd.effective_time * 1000);
+                const endDate = new Date(pwd.invalid_time * 1000);
+                const now = Date.now();
+                const isActive = now >= pwd.effective_time * 1000 && now <= pwd.invalid_time * 1000;
+                const isExpired = now > pwd.invalid_time * 1000;
+                
+                const status = isExpired ? '⏱️ Expirada' : isActive ? '✅ Ativa' : '⏳ Aguardando';
+                const statusColor = isExpired ? '#999' : isActive ? '#28a745' : '#ffc107';
+                
+                const typeText = pwd.type === 0 ? '🔐 Senha Online' : '🎫 Senha Offline';
+                
+                return `
+                    <div class="password-item">
+                        <div class="password-info">
+                            <div class="password-name">${pwd.name || 'Sem nome'} <span style="font-size: 12px; color: #666;">(${typeText})</span></div>
+                            <div class="password-details">
+                                ID: <span class="password-code">${pwd.id}</span>
+                                <br>
+                                ${startDate.toLocaleString('pt-BR')} até ${endDate.toLocaleString('pt-BR')}
+                                <br>
+                                <span style="color: ${statusColor}; font-weight: bold;">${status}</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-danger" onclick="deletePassword('${pwd.id}')" style="padding: 8px 16px;">
+                            🗑️ Deletar
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function deletePassword(passwordId) {
+            if (!confirm('Deseja realmente deletar esta senha?')) {
+                return;
+            }
+
+            showAlert('🗑️ Deletando senha...', 'success');
+
+            try {
+                const response = await fetch(`${API_URL}/device/${config.deviceId}/temp-password/${passwordId}`, {
+                    method: 'DELETE',
+                    headers: getHeaders()
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('✅ Senha deletada com sucesso!', 'success');
+                    setTimeout(() => loadTempPasswords(), 1000);
+                } else {
+                    showAlert(`❌ Erro ao deletar: ${data.msg || 'Falha'}`, 'error');
+                }
+            } catch (err) {
+                console.error('Erro:', err);
+                showAlert('❌ Erro ao deletar senha', 'error');
+            }
+        }
+
+        function showPage(pageName) {
+            document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+            document.querySelectorAll('.sidebar-menu a').forEach(link => link.classList.remove('active'));
+            
+            document.getElementById(`page-${pageName}`).classList.add('active');
+            
+            document.querySelectorAll('.sidebar-menu a').forEach(link => {
+                if (link.getAttribute('onclick') && link.getAttribute('onclick').includes(pageName)) {
+                    link.classList.add('active');
+                }
+            });
+
+            if (pageName === 'passwords') {
+                loadTempPasswords();
+            }
+        }
+
+        function showAlert(message, type) {
+            alertQueue.push({ message, type });
+            if (!isShowingAlert) {
+                processAlertQueue();
+            }
+        }
+
+        function processAlertQueue() {
+            if (alertQueue.length === 0) {
+                isShowingAlert = false;
+                return;
+            }
+            
+            isShowingAlert = true;
+            const { message, type } = alertQueue.shift();
+            
+            const container = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            
+            const icon = type === 'success' ? '✅' : '❌';
+            alert.innerHTML = `<span style="font-size: 18px;">${icon}</span><span>${message}</span>`;
+            
+            container.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.classList.add('fade-out');
+                setTimeout(() => {
+                    if (alert.parentNode) {
+                        alert.parentNode.removeChild(alert);
+                    }
+                    processAlertQueue();
+                }, 300);
+            }, 2000);
+        }
+
+        async function refreshStatus() {
+            if (!config.deviceId) return;
+            
+            try {
+                const [statusRes, infoRes] = await Promise.all([
+                    fetch(`${API_URL}/device/${config.deviceId}/status`, { headers: getHeaders() }),
+                    fetch(`${API_URL}/device/${config.deviceId}/info`, { headers: getHeaders() })
+                ]);
+                
+                const statusData = await statusRes.json();
+                const infoData = await infoRes.json();
+                
+                if (!statusData.success || !infoData.success) {
+                    throw new Error('Erro ao buscar dados');
+                }
+                
+                const isOnline = infoData.result.online;
+                const connectionEl = document.getElementById('connection-status');
+                if (connectionEl) {
+                    connectionEl.innerHTML = isOnline
+                        ? '<span class="badge badge-success">✅ Online</span>'
+                        : '<span class="badge badge-danger">❌ Offline</span>';
+                }
+                
+                const statusMap = {};
+                statusData.result.forEach(item => {
+                    statusMap[item.code] = item.value;
+                });
+                
+                const battery = statusMap.battery_state || 'unknown';
+                const batteryBadge = battery === 'high' ? 'success' : battery === 'medium' ? 'warning' : 'danger';
+                const batteryText = battery === 'high' ? 'Alta' : battery === 'medium' ? 'Média' : battery === 'low' ? 'Baixa' : 'Desconhecida';
+                
+                const batteryEl = document.getElementById('battery-status');
+                if (batteryEl) {
+                    batteryEl.innerHTML = `<span class="badge badge-${batteryBadge}">${batteryText}</span>`;
+                }
+                
+                const statusCard = document.getElementById('status-card');
+                if (statusCard) {
+                    if (battery === 'low') {
+                        statusCard.classList.add('low-battery');
+                    } else {
+                        statusCard.classList.remove('low-battery');
+                    }
+                }
+                
+                const activePasswordsEl = document.getElementById('active-passwords-count');
+                if (activePasswordsEl) {
+                    try {
+                        const passwordsRes = await fetch(`${API_URL}/device/${config.deviceId}/temp-passwords`, {
+                            headers: getHeaders()
+                        });
+                        const passwordsData = await passwordsRes.json();
+                        
+                        if (passwordsData.success && passwordsData.result) {
+                            const now = Date.now();
+                            const activePasswords = passwordsData.result.filter(pwd => {
+                                const isActive = now >= pwd.effective_time * 1000 && now <= pwd.invalid_time * 1000;
+                                return isActive;
+                            });
+                            activePasswordsEl.textContent = activePasswords.length;
+                        } else {
+                            activePasswordsEl.textContent = '0';
+                        }
+                    } catch (err) {
+                        activePasswordsEl.textContent = '--';
+                    }
+                }
+                
+                showAlert('✅ Status atualizado!', 'success');
+            } catch (err) {
+                console.error(err);
+                showAlert('❌ Erro ao buscar status', 'error');
+                const connectionEl = document.getElementById('connection-status');
+                if (connectionEl) {
+                    connectionEl.innerHTML = '<span class="badge badge-danger">❌ Erro</span>';
+                }
+            }
+        }
+    </script>
+</body>
+</html>
