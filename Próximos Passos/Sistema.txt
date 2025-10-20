@@ -1,28 +1,22 @@
 DIVERSOS
-- Quando abre a pagina Senhas aparece no terminal todas as senhas, remover isso
-
-- Criar um banco de dados com postgre e me dar as instruções de como instalar e configurar
-- Nesse banco de dados teremos uma tabela com o login, tabela de configurações
-- Criar um sistema de login e senha (Login email) com esqueci a senha e se não for usuário fazer o cadastro com Nome, Empresa, E-mail, whatsapp e senha
-- Criar uma pagina de configurações que itemos fazer com abas e nessas aba teremos links para clicar e direcionar as paginas de configurações, similar ao anexo.
-- Um dos links ira chamar Configurações Conta Tuya, Outro link Cadastrar Perfil de Usuário, Cadastrar Novo Usuário
-- Verificar todos os tópicos acima e trazer diversas melhorias nos itens prpopostos
-
-MÓDULOS
-- Banco de dados
-- Login
-- Colocar alguns tópicos para conexão com paginas de configuração
 - Configuração com a conexão no Tuya IOT
-- Perfil de usuário
+- Adicionar fechadura manualmente
 - Salvar fechaduras no Banco de dados
 - Renomear Fechadura
 
 
-- Adicionar fechadura manualmente
+
+MÓDULOS
+- Login
+- Adicionar usuário a mesma conta
+- Perfil de usuário
 - Converter em javascript o html
 - Separar as paginas em varias
 - Testar online o sistema
 - Sistema de notificação
 
 EXECUTADO
-- Funcional senha temporaria
+- Funcional senha temporária
+- Conectado ao GitHub
+- Banco de dados
+- Colocar alguns tópicos para conexão com paginas de configuração

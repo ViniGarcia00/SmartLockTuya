@@ -486,6 +486,76 @@ app.get('/api/user/activity-logs', authenticateToken, async (req, res) => {
   }
 });
 
+// Testar conexão Tuya (faz requisição real à API Tuya)
+app.post('/api/config/tuya/test', authenticateToken, async (req, res) => {
+  try {
+    // Busca config do usuário
+    const configResult = await query(
+      'SELECT * FROM tuya_configs WHERE user_id = $1 AND ativo = true',
+      [req.user.id]
+    );
+
+    if (configResult.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Configure suas credenciais Tuya primeiro'
+      });
+    }
+
+    const tuyaConfig = configResult.rows[0];
+    const t = Date.now().toString();
+    const sign = generateTokenSign(tuyaConfig.client_id, tuyaConfig.client_secret, t);
+
+    // Tenta obter token da API Tuya
+    const response = await axios.get(`https://${tuyaConfig.region_host}/v1.0/token?grant_type=1`, {
+      headers: {
+        client_id: tuyaConfig.client_id,
+        sign,
+        sign_method: 'HMAC-SHA256',
+        t,
+      },
+      timeout: 10000
+    });
+
+    if (response.data.success) {
+      res.json({ 
+        success: true, 
+        message: 'Conexão com Tuya estabelecida com sucesso',
+        result: {
+          connected: true,
+          region: tuyaConfig.region_host
+        }
+      });
+    } else {
+      res.status(401).json({ 
+        success: false, 
+        error: 'Credenciais Tuya inválidas'
+      });
+    }
+  } catch (err) {
+    console.error('Erro ao testar Tuya:', err.message);
+    
+    if (err.code === 'ENOTFOUND' || err.code === 'ETIMEDOUT') {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Erro ao conectar. Verifique o Region Host'
+      });
+    }
+    
+    if (err.response?.status === 401 || err.response?.status === 403) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Credenciais Tuya inválidas'
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      error: 'Erro ao conectar com servidor Tuya'
+    });
+  }
+});
+
 // Inicializa servidor
 app.listen(PORT, () => {
   console.log(`\n🚀 Servidor rodando em http://localhost:${PORT}`);
