@@ -1,5 +1,17 @@
+MOMENTO
+- Não esta salvando o cliente secret no banco de dados ou não esta recuperando
+- Quando clica em testar conxão e os campos estão em branco não precisr vir uma mensagem de aviso no canto inferior esquerdo apenas uma mensagem direto no campo similar ao anexo
+- Quando testamos a conexão e da erro fica a mensagem e não some, veja anexo.
+
+- Alterar o "Gerencias fechaduras" que esta em configurações e criar um botão direto no menu
+- Quando adiciona fechadura ter um ícone editar e deletar no card alinhado a direita
+- Mostrar se a fechadura esta online nesse card
+- Pagina Senhas não esta funcionando, verificar
+- Na pagina principal não esta mostrando nenhuma fechadura para localizar.
+
+
 DIVERSOS
-- Configuração com a conexão no Tuya IOT
+
 - Adicionar fechadura manualmente
 - Salvar fechaduras no Banco de dados
 - Renomear Fechadura
@@ -20,3 +32,4 @@ EXECUTADO
 - Conectado ao GitHub
 - Banco de dados
 - Colocar alguns tópicos para conexão com paginas de configuração
+- Configuração com a conexão no Tuya IOT

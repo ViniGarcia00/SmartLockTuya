@@ -205,7 +205,6 @@ app.get('/api/device/:deviceId/temp-passwords', authenticateToken, requireTuyaCo
       },
     });
 
-    // NÃO LOGA MAIS NO TERMINAL
     res.json(response.data);
   } catch (err) {
     console.error('Erro ao listar senhas:', err.message);
@@ -379,14 +378,28 @@ app.post('/api/device/:deviceId/temp-password', authenticateToken, requireTuyaCo
 app.get('/api/config/tuya', authenticateToken, async (req, res) => {
   try {
     const result = await query(
-      'SELECT id, client_id, region_host, ativo FROM tuya_configs WHERE user_id = $1',
+      'SELECT id, client_id, client_secret, region_host, ativo FROM tuya_configs WHERE user_id = $1',
       [req.user.id]
     );
 
-    res.json({ 
-      success: true, 
-      result: result.rows.length > 0 ? result.rows[0] : null 
-    });
+    if (result.rows.length > 0) {
+      const config = result.rows[0];
+      res.json({ 
+        success: true, 
+        result: {
+          id: config.id,
+          client_id: config.client_id,
+          client_secret: config.client_secret, // Retorna o secret
+          region_host: config.region_host,
+          ativo: config.ativo
+        }
+      });
+    } else {
+      res.json({ 
+        success: true, 
+        result: null 
+      });
+    }
   } catch (err) {
     console.error('Erro ao buscar config:', err.message);
     res.status(500).json({ success: false, error: err.message });

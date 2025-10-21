@@ -203,6 +203,7 @@
 
         .form-group {
             margin-bottom: 20px;
+            position: relative;
         }
 
         .form-group label {
@@ -229,6 +230,21 @@
         .form-group textarea:focus {
             outline: none;
             border-color: #667eea;
+        }
+
+        .form-group input.error {
+            border-color: #dc3545;
+        }
+
+        .form-group .field-error {
+            color: #dc3545;
+            font-size: 12px;
+            margin-top: 5px;
+            display: none;
+        }
+
+        .form-group .field-error.show {
+            display: block;
         }
 
         .btn {
@@ -453,6 +469,30 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        #test-result {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            display: none;
+        }
+
+        #test-result.success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        #test-result.error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+
+        #test-result.show {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -607,20 +647,25 @@
                 <div class="form-group">
                     <label>Client ID *</label>
                     <input type="text" id="tuya-client-id" required placeholder="Ex: sakwdjwyftafvfvqetdv">
+                    <div class="field-error" id="error-client-id">Campo obrigatório</div>
                 </div>
 
                 <div class="form-group">
                     <label>Client Secret *</label>
-                    <input type="text" id="tuya-client-secret" required placeholder="Digite o Client Secret" autocomplete="off">
+                    <input type="password" id="tuya-client-secret" required placeholder="Digite o Client Secret" autocomplete="new-password">
+                    <div class="field-error" id="error-client-secret">Campo obrigatório</div>
                 </div>
 
                 <div class="form-group">
                     <label>Region Host *</label>
                     <input type="text" id="tuya-region" required placeholder="Ex: openapi.tuyaus.com" value="openapi.tuyaus.com">
+                    <div class="field-error" id="error-region">Campo obrigatório</div>
                     <small style="color: #666; font-size: 12px; display: block; margin-top: 5px;">
                         Sugestões: openapi.tuyaus.com (EUA), openapi.tuyaeu.com (Europa), openapi.tuyacn.com (China)
                     </small>
                 </div>
+
+                <div id="test-result"></div>
 
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
                     <button type="button" class="btn btn-secondary" id="test-tuya-btn" style="flex: 1;">
@@ -631,8 +676,6 @@
                     </button>
                 </div>
             </form>
-
-            <div id="test-result" style="margin-top: 15px; display: none;"></div>
         </div>
     </div>
 
@@ -682,6 +725,7 @@
     <script>
         const API_URL = 'http://localhost:3000/api';
         let currentUser = null;
+        let currentSecretValue = ''; // Armazena o secret atual
 
         // ========== AUTENTICAÇÃO ==========
         
@@ -718,6 +762,55 @@
                 alert.style.animation = 'slideOutRight 0.3s ease forwards';
                 setTimeout(() => alert.remove(), 300);
             }, 4000);
+        }
+
+        // ========== VALIDAÇÃO DE CAMPOS ==========
+
+        function showFieldError(fieldId, errorId) {
+            const field = document.getElementById(fieldId);
+            const error = document.getElementById(errorId);
+            field.classList.add('error');
+            error.classList.add('show');
+        }
+
+        function hideFieldError(fieldId, errorId) {
+            const field = document.getElementById(fieldId);
+            const error = document.getElementById(errorId);
+            field.classList.remove('error');
+            error.classList.remove('show');
+        }
+
+        function hideAllFieldErrors() {
+            ['tuya-client-id', 'tuya-client-secret', 'tuya-region'].forEach(fieldId => {
+                hideFieldError(fieldId, `error-${fieldId.replace('tuya-', '')}`);
+            });
+        }
+
+        function validateTuyaFields() {
+            hideAllFieldErrors();
+            
+            const clientId = document.getElementById('tuya-client-id').value.trim();
+            const clientSecret = document.getElementById('tuya-client-secret').value.trim();
+            const region = document.getElementById('tuya-region').value.trim();
+
+            let hasError = false;
+
+            if (!clientId) {
+                showFieldError('tuya-client-id', 'error-client-id');
+                hasError = true;
+            }
+
+            if (!clientSecret && !currentSecretValue) {
+                showFieldError('tuya-client-secret', 'error-client-secret');
+                hasError = true;
+            }
+
+            if (!region) {
+                showFieldError('tuya-region', 'error-region');
+                hasError = true;
+            }
+
+            return !hasError;
         }
 
         // ========== INICIALIZAÇÃO ==========
@@ -759,6 +852,15 @@
             document.getElementById('profile-form').addEventListener('submit', handleProfileSubmit);
             document.getElementById('add-lock-form').addEventListener('submit', handleAddLock);
 
+            // Limpa erros ao digitar
+            ['tuya-client-id', 'tuya-client-secret', 'tuya-region'].forEach(fieldId => {
+                document.getElementById(fieldId).addEventListener('input', () => {
+                    hideFieldError(fieldId, `error-${fieldId.replace('tuya-', '')}`);
+                    // Esconde mensagem de resultado ao editar
+                    document.getElementById('test-result').classList.remove('show');
+                });
+            });
+
             // Carrega dados
             loadProfile();
 
@@ -773,49 +875,64 @@
         function openTuyaModal() {
             document.getElementById('tuya-modal').classList.add('show');
             loadTuyaConfig();
-            document.getElementById('test-result').style.display = 'none';
+            hideAllFieldErrors();
+            document.getElementById('test-result').classList.remove('show');
         }
 
         function closeTuyaModal() {
             document.getElementById('tuya-modal').classList.remove('show');
+            hideAllFieldErrors();
+            document.getElementById('test-result').classList.remove('show');
         }
 
         async function loadTuyaConfig() {
             try {
                 const res = await fetch(`${API_URL}/config/tuya`, { headers: getHeaders() });
                 const data = await res.json();
+                
                 if (data.success && data.result) {
                     document.getElementById('tuya-client-id').value = data.result.client_id || '';
                     document.getElementById('tuya-region').value = data.result.region_host || 'openapi.tuyaus.com';
+                    
+                    // Armazena o secret atual (não vazio se já existe)
+                    if (data.result.client_secret) {
+                        currentSecretValue = data.result.client_secret;
+                        // Mostra placeholder indicando que há um secret salvo
+                        document.getElementById('tuya-client-secret').placeholder = '••••••••••••••••';
+                    } else {
+                        currentSecretValue = '';
+                        document.getElementById('tuya-client-secret').placeholder = 'Digite o Client Secret';
+                    }
+                    
+                    document.getElementById('tuya-client-secret').value = '';
+                } else {
+                    currentSecretValue = '';
                 }
             } catch (err) {
                 console.error('Erro ao carregar config:', err);
+                currentSecretValue = '';
             }
         }
 
         async function handleTuyaSubmit(e) {
             e.preventDefault();
             
+            if (!validateTuyaFields()) {
+                return;
+            }
+
             const clientId = document.getElementById('tuya-client-id').value.trim();
-            const clientSecret = document.getElementById('tuya-client-secret').value.trim();
+            let clientSecret = document.getElementById('tuya-client-secret').value.trim();
             const region = document.getElementById('tuya-region').value.trim();
 
-            // Validação
-            if (!clientId) {
-                showAlert('⚠️ Client ID é obrigatório', 'error');
-                document.getElementById('tuya-client-id').focus();
-                return;
+            // Se o campo secret está vazio, usa o valor atual armazenado
+            if (!clientSecret && currentSecretValue) {
+                clientSecret = currentSecretValue;
             }
 
+            // Validação final
             if (!clientSecret) {
-                showAlert('⚠️ Client Secret é obrigatório', 'error');
-                document.getElementById('tuya-client-secret').focus();
-                return;
-            }
-
-            if (!region) {
-                showAlert('⚠️ Region Host é obrigatório', 'error');
-                document.getElementById('tuya-region').focus();
+                showFieldError('tuya-client-secret', 'error-client-secret');
                 return;
             }
 
@@ -834,6 +951,7 @@
 
                 if (data.success) {
                     showAlert('✅ Configurações salvas com sucesso!', 'success');
+                    currentSecretValue = clientSecret; // Atualiza o valor atual
                     closeTuyaModal();
                 } else {
                     showAlert(`❌ ${data.error}`, 'error');
@@ -844,34 +962,31 @@
         }
 
         async function handleTuyaTest() {
+            // Valida campos antes de testar
+            if (!validateTuyaFields()) {
+                return;
+            }
+
             const clientId = document.getElementById('tuya-client-id').value.trim();
-            const clientSecret = document.getElementById('tuya-client-secret').value.trim();
+            let clientSecret = document.getElementById('tuya-client-secret').value.trim();
             const region = document.getElementById('tuya-region').value.trim();
 
-            // Validação de campos obrigatórios
-            if (!clientId) {
-                showAlert('⚠️ Client ID é obrigatório', 'error');
-                document.getElementById('tuya-client-id').focus();
-                return;
+            // Se o campo secret está vazio, usa o valor atual armazenado
+            if (!clientSecret && currentSecretValue) {
+                clientSecret = currentSecretValue;
             }
 
+            // Validação final
             if (!clientSecret) {
-                showAlert('⚠️ Client Secret é obrigatório', 'error');
-                document.getElementById('tuya-client-secret').focus();
-                return;
-            }
-
-            if (!region) {
-                showAlert('⚠️ Region Host é obrigatório', 'error');
-                document.getElementById('tuya-region').focus();
+                showFieldError('tuya-client-secret', 'error-client-secret');
                 return;
             }
 
             const testResult = document.getElementById('test-result');
             const testBtn = document.getElementById('test-tuya-btn');
             
-            testResult.style.display = 'block';
-            testResult.className = 'alert alert-info';
+            testResult.className = '';
+            testResult.classList.add('show');
             testResult.innerHTML = '🔄 Conectando ao servidor Tuya...';
             testBtn.disabled = true;
             testBtn.innerHTML = '<span class="loading"></span> Testando...';
@@ -894,6 +1009,9 @@
                     throw new Error(saveData.error || 'Erro ao salvar configurações');
                 }
 
+                // Atualiza o valor atual
+                currentSecretValue = clientSecret;
+
                 // Aguarda processamento
                 await new Promise(resolve => setTimeout(resolve, 500));
 
@@ -906,12 +1024,12 @@
                 const testData = await testRes.json();
 
                 if (testData.success) {
-                    testResult.className = 'alert alert-success';
+                    testResult.className = 'success show';
                     testResult.innerHTML = `✅ Conexão Tuya estabelecida!<br><small>Region: ${testData.result.region}</small>`;
-                    showAlert('✅ Conexão com Tuya verificada!', 'success');
                     
+                    // Remove a mensagem após 5 segundos
                     setTimeout(() => {
-                        testResult.style.display = 'none';
+                        testResult.classList.remove('show');
                     }, 5000);
                 } else {
                     throw new Error(testData.error || 'Falha na conexão');
@@ -919,9 +1037,13 @@
 
             } catch (err) {
                 console.error('Erro no teste:', err);
-                testResult.className = 'alert alert-error';
+                testResult.className = 'error show';
                 testResult.innerHTML = `❌ ${err.message || 'Falha na conexão'}<br><small>Verifique suas credenciais e Region Host</small>`;
-                showAlert('❌ Credenciais Tuya inválidas', 'error');
+                
+                // Remove a mensagem de erro após 5 segundos
+                setTimeout(() => {
+                    testResult.classList.remove('show');
+                }, 5000);
             } finally {
                 testBtn.disabled = false;
                 testBtn.innerHTML = '🔍 Testar Conexão';
