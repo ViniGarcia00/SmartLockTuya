@@ -1,31 +1,40 @@
-MOMENTO
-- Não esta salvando o cliente secret no banco de dados ou não esta recuperando
-- Quando clica em testar conxão e os campos estão em branco não precisr vir uma mensagem de aviso no canto inferior esquerdo apenas uma mensagem direto no campo similar ao anexo
-- Quando testamos a conexão e da erro fica a mensagem e não some, veja anexo.
+GERAL
+- Trocar no menu "Pagina Inicial" por "Dashboard"
 
-- Alterar o "Gerencias fechaduras" que esta em configurações e criar um botão direto no menu
-- Quando adiciona fechadura ter um ícone editar e deletar no card alinhado a direita
-- Mostrar se a fechadura esta online nesse card
-- Pagina Senhas não esta funcionando, verificar
-- Na pagina principal não esta mostrando nenhuma fechadura para localizar.
+DASHBOARD
+- O status Conta Tuya fica apenas verificando..., ele deve verificar se há comunicação com a conta Tuya configurada la em configurações > Configuração conta Tuya, similar a testar conexão
+- Remover do Card "Ver Detalhes"
+- Alterar o Botão "Senha" para "Senha Temporária" e deixar funcional criando a pagina para acessar 
+- Trocar dentro do Card o Estado por Senhas temporárias e colocar quantas senhas temporárias tem cadastradas
 
+PASSWORD
+- Criar um botão Voltar que retorna a pagina Dashboard, Pode ser um ícone de uma seta para retornar.
+- Deixar Botão Deletar funcional, esta dando erro e não deleta
 
-DIVERSOS
+FECHADURAS
+- Não esta carregando as fechaduras, fica apenas a mensagem Carregando Fechaduras
 
-- Adicionar fechadura manualmente
-- Salvar fechaduras no Banco de dados
-- Renomear Fechadura
-
+- Remover o Botão Ver Detalhes
+- Transformar os ícones Editar e Deletar e botão e colocar no lugar de ver Detalhes
+- Colocar o status na esma posição dos ícones de editar e deletar
+- No popup Adicionar Fechaduras centralizar os textos dos 2 botões
+- Quando clica em editar ter mais um campo para preencher de ID Acomodação e mostrar no carta abaixo de Device ID
 
 
 MÓDULOS
+- Sistema de busca
 - Login
+- Diveros logins principais
 - Adicionar usuário a mesma conta
 - Perfil de usuário
 - Converter em javascript o html
-- Separar as paginas em varias
 - Testar online o sistema
 - Sistema de notificação
+- Sistema de Log
+- Mensagem por whatsapp
+- Dividir por casa
+- Adicionar sensores
+- API com Stays
 
 EXECUTADO
 - Funcional senha temporária
@@ -33,3 +42,6 @@ EXECUTADO
 - Banco de dados
 - Colocar alguns tópicos para conexão com paginas de configuração
 - Configuração com a conexão no Tuya IOT
+- Adicionar fechadura manualmente
+- Salvar fechaduras no Banco de dados
+- Renomear Fechadura

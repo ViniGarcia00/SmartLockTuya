@@ -82,20 +82,6 @@
             padding: 30px;
         }
 
-        .page {
-            display: none;
-            animation: fadeIn 0.3s ease;
-        }
-
-        .page.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
         .page-header {
             margin-bottom: 30px;
         }
@@ -106,13 +92,54 @@
             margin-bottom: 5px;
         }
 
+        .page-header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .warning-box strong {
+            color: #856404;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .warning-box p {
+            color: #856404;
+            font-size: 13px;
+            margin: 0;
+        }
+
+        .warning-box a {
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .locks-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
         .card {
             background: white;
             border-radius: 15px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.08);
             padding: 25px;
-            margin-bottom: 20px;
-            transition: background-color 0.3s;
+            transition: all 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
         }
 
         .card.low-battery {
@@ -211,41 +238,20 @@
             color: white;
         }
 
-        .btn-danger {
-            background: #dc3545;
-            color: white;
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
         }
 
-        .btn-danger:hover {
-            background: #c82333;
-        }
-
-        .form-group {
+        .empty-state-icon {
+            font-size: 64px;
             margin-bottom: 20px;
         }
 
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .form-group input,
-        .form-group select {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border-color 0.3s;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus {
-            outline: none;
-            border-color: #667eea;
+        .empty-state p {
+            font-size: 16px;
+            margin-bottom: 20px;
         }
 
         .alert {
@@ -288,107 +294,6 @@
             }
         }
 
-        .alert.fade-out {
-            animation: slideOutRight 0.3s ease forwards;
-        }
-
-        @keyframes slideOutRight {
-            from {
-                opacity: 1;
-                transform: translateX(0);
-            }
-            to {
-                opacity: 0;
-                transform: translateX(100%);
-            }
-        }
-
-        .popup-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            z-index: 1000;
-            animation: fadeIn 0.3s ease;
-        }
-
-        .popup-overlay.show {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .popup-content {
-            background: white;
-            border-radius: 20px;
-            padding: 40px;
-            max-width: 600px;
-            width: 90%;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-            animation: slideUp 0.3s ease;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .password-item {
-            padding: 15px;
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .password-info {
-            flex: 1;
-        }
-
-        .password-name {
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 5px;
-        }
-
-        .password-details {
-            font-size: 12px;
-            color: #666;
-        }
-
-        .password-code {
-            font-family: monospace;
-            background: #f8f9fa;
-            padding: 4px 8px;
-            border-radius: 4px;
-            margin: 0 5px;
-            font-weight: bold;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #999;
-        }
-
-        .empty-state-icon {
-            font-size: 48px;
-            margin-bottom: 10px;
-        }
-
         .loading {
             display: inline-block;
             width: 20px;
@@ -403,29 +308,12 @@
             to { transform: rotate(360deg); }
         }
 
-        .warning-box {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        .warning-box strong {
-            color: #856404;
-            display: block;
-            margin-bottom: 5px;
-        }
-
-        .warning-box p {
-            color: #856404;
-            font-size: 13px;
-            margin: 0;
-        }
-
-        .warning-box a {
-            color: #667eea;
-            font-weight: bold;
+        .card-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 2px solid #f0f0f0;
         }
     </style>
 </head>
@@ -437,15 +325,15 @@
         </div>
         <ul class="sidebar-menu">
             <li>
-                <a href="#" class="active" onclick="showPage('home')">
+                <a href="dashboard.html" class="active">
                     <span class="icon">🏠</span>
                     <span>Página Inicial</span>
                 </a>
             </li>
             <li>
-                <a href="#" onclick="showPage('passwords')">
-                    <span class="icon">🔑</span>
-                    <span>Senhas</span>
+                <a href="locks.html">
+                    <span class="icon">🔐</span>
+                    <span>Fechaduras</span>
                 </a>
             </li>
             <li>
@@ -464,34 +352,233 @@
     </aside>
 
     <main class="main-content">
-        <!-- Página Inicial -->
-        <div id="page-home" class="page active">
-            <div class="page-header">
-                <h2>Página Inicial</h2>
-                <p>Monitore e controle suas fechaduras inteligentes</p>
+        <div class="page-header">
+            <h2>Dashboard</h2>
+            <p>Monitore suas fechaduras inteligentes</p>
+            <div style="margin-top: 10px;">
+                <span style="color: #666; font-size: 14px; font-weight: 600;">Status Conta Tuya:</span>
+                <span id="tuya-status" class="badge badge-warning">Verificando...</span>
             </div>
+        </div>
 
-            <div id="config-warning" class="warning-box" style="display: none;">
-                <strong>⚠️ Configuração Necessária</strong>
-                <p>Configure suas credenciais Tuya para começar a usar o sistema. 
-                   <a href="settings.html#tuya">Clique aqui para configurar</a>
-                </p>
+        <div id="config-warning" class="warning-box" style="display: none;">
+            <strong>⚠️ Configuração Necessária</strong>
+            <p>Configure suas credenciais Tuya para começar a usar o sistema. 
+               <a href="settings.html#tuya">Clique aqui para configurar</a>
+            </p>
+        </div>
+
+        <button class="btn btn-secondary" onclick="refreshAll()" style="width: 100%; margin-bottom: 20px;">
+            🔄 Atualizar Status
+        </button>
+
+        <div id="locks-container">
+            <div class="empty-state">
+                <div class="loading" style="width: 40px; height: 40px; border-color: #667eea; border-top-color: transparent;"></div>
+                <p style="margin-top: 15px;">Carregando fechaduras...</p>
             </div>
+        </div>
+    </main>
 
-            <div class="card">
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label>🔐 Selecione a Fechadura</label>
-                    <select id="lock-selector" onchange="switchLock()">
-                        <option value="">Carregando...</option>
-                    </select>
+    <div id="alert-container"></div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+        let currentUser = null;
+        let locks = [];
+
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            if (!token || !user) {
+                window.location.href = 'login.html';
+                return false;
+            }
+            
+            currentUser = JSON.parse(user);
+            document.getElementById('user-name').textContent = `Olá, ${currentUser.nome.split(' ')[0]}!`;
+            return true;
+        }
+
+        function getHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            };
+        }
+
+        function logout() {
+            if (confirm('Deseja realmente sair?')) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                localStorage.removeItem('currentLockId');
+                window.location.href = 'login.html';
+            }
+        }
+
+        function showAlert(message, type) {
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            
+            const icon = type === 'success' ? '✅' : '❌';
+            alert.innerHTML = `<span style="font-size: 18px;">${icon}</span><span>${message}</span>`;
+            
+            document.body.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.style.animation = 'slideOutRight 0.3s ease forwards';
+                setTimeout(() => alert.remove(), 300);
+            }, 4000);
+        }
+
+        async function loadLocks() {
+            try {
+                const response = await fetch(`${API_URL}/locks`, {
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                
+                if (response.status === 400 && data.redirect) {
+                    document.getElementById('config-warning').style.display = 'block';
+                    document.getElementById('locks-container').innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚙️</div><p>Configure sua conta Tuya primeiro</p></div>';
+                    return false;
+                }
+                
+                if (data.success && data.result.length > 0) {
+                    locks = data.result;
+                    document.getElementById('config-warning').style.display = 'none';
+                    await displayLocks(data.result);
+                    return true;
+                } else {
+                    document.getElementById('locks-container').innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🔐</div>
+                            <p>Nenhuma fechadura cadastrada</p>
+                            <button class="btn btn-primary" onclick="window.location.href='locks.html'">
+                                ➕ Adicionar Fechadura
+                            </button>
+                        </div>
+                    `;
+                    return false;
+                }
+            } catch (err) {
+                console.error('Erro ao carregar fechaduras:', err);
+                showAlert('❌ Erro ao carregar fechaduras', 'error');
+                return false;
+            }
+        }
+
+        async function displayLocks(locksData) {
+            const container = document.getElementById('locks-container');
+            
+            container.innerHTML = '<div class="empty-state"><div class="loading" style="width: 40px; height: 40px; border-color: #667eea; border-top-color: transparent;"></div><p style="margin-top: 15px;">Carregando status...</p></div>';
+
+            const locksWithStatus = await Promise.all(locksData.map(async (lock) => {
+                try {
+                    const [statusRes, infoRes] = await Promise.all([
+                        fetch(`${API_URL}/device/${lock.id}/status`, { headers: getHeaders() }),
+                        fetch(`${API_URL}/device/${lock.id}/info`, { headers: getHeaders() })
+                    ]);
+                    
+                    const statusData = await statusRes.json();
+                    const infoData = await infoRes.json();
+                    
+                    const statusMap = {};
+                    if (statusData.success && statusData.result) {
+                        statusData.result.forEach(item => {
+                            statusMap[item.code] = item.value;
+                        });
+                    }
+                    
+                    return {
+                        ...lock,
+                        online: infoData.success ? infoData.result.online : false,
+                        battery: statusMap.battery_state || 'unknown',
+                        locked: statusMap.closed_opened === 'closed'
+                    };
+                } catch (err) {
+                    return {
+                        ...lock,
+                        online: false,
+                        battery: 'unknown',
+                        locked: null
+                    };
+                }
+            }));
+
+            container.innerHTML = `
+                <div class="locks-grid">
+                    ${locksWithStatus.map(lock => {
+                        const batteryBadge = lock.battery === 'high' ? 'success' : lock.battery === 'medium' ? 'warning' : 'danger';
+                        const batteryText = lock.battery === 'high' ? 'Alta' : lock.battery === 'medium' ? 'Média' : lock.battery === 'low' ? 'Baixa' : 'Desconhecida';
+                        const lowBattery = lock.battery === 'low';
+                        
+                        return `
+                            <div class="card ${lowBattery ? 'low-battery' : ''}">
+                                <div class="card-title">
+                                    ${lock.name}
+                                    <span class="badge ${lock.online ? 'badge-success' : 'badge-danger'}">
+                                        ${lock.online ? '✅ Online' : '❌ Offline'}
+                                    </span>
+                                </div>
+                                
+                                <div class="status-row">
+                                    <span class="status-label">Localização</span>
+                                    <span class="status-value">${lock.location || '-'}</span>
+                                </div>
+                                
+                                <div class="status-row">
+                                    <span class="status-label">Bateria</span>
+                                    <span class="status-value">
+                                        <span class="badge badge-${batteryBadge}">${batteryText}</span>
+                                    </span>
+                                </div>
+                                
+                                <div class="status-row">
+                                    <span class="status-label">Estado</span>
+                                    <span class="status-value">
+                                        ${lock.locked !== null ? (lock.locked ? '🔒 Trancada' : '🔓 Destrancada') : '-'}
+                                    </span>
+                                </div>
+                                
+                                <div class="card-actions">
+                                    <button class="btn btn-secondary" onclick="viewLockDetails('${lock.id}')" style="flex: 1;">
+                                        📊 Ver Detalhes
+                                    </button>
+                                    <button class="btn btn-primary" onclick="manageLockPasswords('${lock.id}')" style="flex: 1;">
+                                        🔑 Senhas
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
-            </div>
+            `;
+        }
 
-            <button class="btn btn-primary" onclick="openTempPasswordModal()" style="width: 100%; margin-bottom: 20px;">
-                🔑 Criar Senha Temporária
-            </button>
+        function viewLockDetails(deviceId) {
+            localStorage.setItem('currentLockId', deviceId);
+            window.location.href = 'locks.html';
+        }
 
-            <div class="card" id="status-card">
-                <div class="card-title">Status do Dispositivo</div>
-                <div class="status-row">
-                    <span class
+        function manageLockPasswords(deviceId) {
+            localStorage.setItem('currentLockId', deviceId);
+            window.location.href = 'passwords.html';
+        }
+
+        async function refreshAll() {
+            showAlert('🔄 Atualizando status...', 'success');
+            await loadLocks();
+            showAlert('✅ Status atualizado!', 'success');
+        }
+
+        async function init() {
+            if (!checkAuth()) return;
+            await loadLocks();
+        }
+
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

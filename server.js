@@ -97,7 +97,7 @@ app.get('/api/health', (req, res) => {
 app.get('/api/locks', authenticateToken, async (req, res) => {
   try {
     const result = await query(
-      'SELECT id, device_id, nome, localizacao, ativo FROM locks WHERE user_id = $1 AND ativo = true',
+      'SELECT id, device_id, nome, localizacao, accommodation_id, ativo FROM locks WHERE user_id = $1 AND ativo = true',
       [req.user.id]
     );
 
@@ -106,7 +106,8 @@ app.get('/api/locks', authenticateToken, async (req, res) => {
       result: result.rows.map(lock => ({
         id: lock.device_id,
         name: lock.nome,
-        location: lock.localizacao
+        location: lock.localizacao,
+        accommodation_id: lock.accommodation_id
       }))
     });
   } catch (err) {
@@ -118,18 +119,66 @@ app.get('/api/locks', authenticateToken, async (req, res) => {
 // Adicionar fechadura
 app.post('/api/locks', authenticateToken, async (req, res) => {
   try {
-    const { device_id, nome, localizacao } = req.body;
+    const { device_id, nome, localizacao, accommodation_id } = req.body;
 
     const result = await query(
-      `INSERT INTO locks (user_id, device_id, nome, localizacao) 
-       VALUES ($1, $2, $3, $4) 
-       RETURNING id, device_id, nome, localizacao`,
-      [req.user.id, device_id, nome, localizacao]
+      `INSERT INTO locks (user_id, device_id, nome, localizacao, accommodation_id) 
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING id, device_id, nome, localizacao, accommodation_id`,
+      [req.user.id, device_id, nome, localizacao, accommodation_id]
     );
 
     res.json({ success: true, result: result.rows[0] });
   } catch (err) {
     console.error('Erro ao adicionar fechadura:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Atualizar fechadura
+app.put('/api/locks/:deviceId', authenticateToken, async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const { nome, localizacao, accommodation_id } = req.body;
+
+    const result = await query(
+      `UPDATE locks 
+       SET nome = $1, localizacao = $2, accommodation_id = $3, updated_at = NOW()
+       WHERE user_id = $4 AND device_id = $5
+       RETURNING id, device_id, nome, localizacao, accommodation_id`,
+      [nome, localizacao, accommodation_id, req.user.id, deviceId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Fechadura não encontrada' });
+    }
+
+    res.json({ success: true, result: result.rows[0] });
+  } catch (err) {
+    console.error('Erro ao atualizar fechadura:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Deletar fechadura
+app.delete('/api/locks/:deviceId', authenticateToken, async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+
+    const result = await query(
+      `DELETE FROM locks 
+       WHERE user_id = $1 AND device_id = $2
+       RETURNING id`,
+      [req.user.id, deviceId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Fechadura não encontrada' });
+    }
+
+    res.json({ success: true, message: 'Fechadura deletada com sucesso' });
+  } catch (err) {
+    console.error('Erro ao deletar fechadura:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
