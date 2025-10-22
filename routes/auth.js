@@ -1,3 +1,11 @@
+/**
+ * =========================================================
+ * ROTAS DE AUTENTICAÇÃO
+ * =========================================================
+ * Registro, login, verificação de email e reset de senha
+ * =========================================================
+ */
+
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
@@ -7,7 +15,8 @@ const { query } = require('../config/database');
 const { body, validationResult } = require('express-validator');
 const nodemailer = require('nodemailer');
 
-// Configurar transporte de email
+// ===== CONFIGURAÇÃO DE EMAIL =====
+// Transporte Nodemailer para envio de emails de verificação e reset de senha
 const transporter = nodemailer.createTransport({
   service: process.env.EMAIL_SERVICE || 'gmail',
   auth: {
@@ -16,6 +25,26 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+/**
+ * POST /api/auth/register
+ * Registra novo usuário no sistema
+ * 
+ * Validações:
+ * - Nome: obrigatório
+ * - Email: formato válido e único
+ * - Senha: mínimo 6 caracteres
+ * - WhatsApp: opcional
+ * 
+ * Processo:
+ * 1. Valida entrada com express-validator
+ * 2. Verifica se email já existe
+ * 3. Faz hash da senha com bcrypt (10 rounds)
+ * 4. Gera token de verificação de email
+ * 5. Insere usuário no banco
+ * 6. Envia email de verificação (se configurado)
+ * 
+ * @returns {object} { success, message, user }
+ */
 // ==================== REGISTRO ====================
 router.post('/register', [
   body('nome').trim().notEmpty().withMessage('Nome é obrigatório'),
@@ -47,13 +76,13 @@ router.post('/register', [
       });
     }
 
-    // Hash da senha
+    // Hash da senha com bcrypt - padrão: 10 rounds
     const senhaHash = await bcrypt.hash(senha, 10);
     
-    // Token de verificação de email
+    // Gera token aleatório para verificação de email
     const tokenVerificacao = crypto.randomBytes(32).toString('hex');
 
-    // Insere usuário
+    // Insere novo usuário no banco
     const result = await query(
       `INSERT INTO users (nome, empresa, email, whatsapp, senha_hash, token_verificacao)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -63,7 +92,7 @@ router.post('/register', [
 
     const user = result.rows[0];
 
-    // Envia email de verificação (opcional)
+    // Envia email de verificação (opcional - requer configuração)
     if (process.env.EMAIL_USER) {
       try {
         await transporter.sendMail({
@@ -79,7 +108,7 @@ router.post('/register', [
         });
       } catch (emailError) {
         console.error('Erro ao enviar email:', emailError);
-        // Continua mesmo se o email falhar
+        // Continua mesmo se o email falhar - não bloqueia registro
       }
     }
 
@@ -104,6 +133,25 @@ router.post('/register', [
 });
 
 // ==================== LOGIN ====================
+/**
+ * POST /api/auth/login
+ * Autentica usuário e retorna JWT token
+ * 
+ * Validações:
+ * - Email deve ser formato válido
+ * - Senha não pode estar vazia
+ * 
+ * Processo:
+ * 1. Busca usuário no banco pelo email
+ * 2. Compara senha com hash usando bcrypt
+ * 3. Gera JWT token com expiração de 24h
+ * 4. Retorna token + dados do usuário
+ * 
+ * Token deve ser enviado em requisições subsequentes:
+ * Header: Authorization: Bearer <token>
+ * 
+ * @returns {object} { success, token, id, nome }
+ */
 router.post('/login', [
   body('email').isEmail().normalizeEmail(),
   body('senha').notEmpty()

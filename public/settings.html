@@ -463,7 +463,7 @@
             <li>
                 <a href="dashboard.html">
                     <span class="icon">🏠</span>
-                    <span>Página Inicial</span>
+                    <span>Dashboard</span>
                 </a>
             </li>
             <li>
@@ -606,7 +606,7 @@
 
                 <div class="form-group">
                     <label>Region Host *</label>
-                    <input type="text" id="tuya-region" required placeholder="Ex: openapi.tuyaus.com" value="openapi.tuyaus.com">
+                    <input type="text" id="tuya-region" required placeholder="Ex: openapi.tuyaus.com">
                     <div class="field-error" id="error-region">Campo obrigatório</div>
                     <small style="color: #666; font-size: 12px; display: block; margin-top: 5px;">
                         Sugestões: openapi.tuyaus.com (EUA), openapi.tuyaeu.com (Europa), openapi.tuyacn.com (China)
@@ -616,11 +616,11 @@
                 <div id="test-result"></div>
 
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
-                    <button type="button" class="btn btn-secondary" id="test-tuya-btn" style="flex: 1;">
-                        🔍 Testar Conexão
+                    <button type="button" class="btn btn-danger" id="clear-tuya-btn" style="flex: 1;">
+                        ↻ Resetar Conta
                     </button>
-                    <button type="submit" class="btn btn-primary" style="flex: 1;">
-                        💾 Salvar
+                    <button type="button" class="btn btn-primary" id="test-tuya-btn" style="flex: 1;">
+                        🔍 Testar Conexão e Salvar
                     </button>
                 </div>
             </form>
@@ -739,8 +739,8 @@
             document.getElementById('change-password-btn').addEventListener('click', () => showAlert('Em desenvolvimento', 'info'));
             document.getElementById('activity-logs-btn').addEventListener('click', () => showAlert('Em desenvolvimento', 'info'));
 
-            document.getElementById('tuya-form').addEventListener('submit', handleTuyaSubmit);
             document.getElementById('test-tuya-btn').addEventListener('click', handleTuyaTest);
+            document.getElementById('clear-tuya-btn').addEventListener('click', handleClearTuya);
             document.getElementById('profile-form').addEventListener('submit', handleProfileSubmit);
 
             ['tuya-client-id', 'tuya-client-secret', 'tuya-region'].forEach(fieldId => {
@@ -836,7 +836,7 @@
             testResult.classList.add('show');
             testResult.innerHTML = '🔄 Conectando ao servidor Tuya...';
             testBtn.disabled = true;
-            testBtn.innerHTML = '<span class="loading"></span> Testando...';
+            testBtn.innerHTML = '<span class="loading"></span> Testando e salvando...';
 
             try {
                 const saveRes = await fetch(`${API_URL}/config/tuya`, {
@@ -866,11 +866,11 @@
 
                 if (testData.success) {
                     testResult.className = 'success show';
-                    testResult.innerHTML = `✅ Conexão Tuya estabelecida!<br><small>Region: ${testData.result.region}</small>`;
+                    testResult.innerHTML = `✅ Conexão testada e configurações salvas!<br><small>Region: ${testData.result.region}</small>`;
                     
                     setTimeout(() => {
-                        testResult.classList.remove('show');
-                    }, 5000);
+                        closeTuyaModal();
+                    }, 1500);
                 } else {
                     throw new Error(testData.error || 'Falha na conexão');
                 }
@@ -886,6 +886,34 @@
             } finally {
                 testBtn.disabled = false;
                 testBtn.innerHTML = '🔍 Testar Conexão';
+            }
+        }
+
+        async function handleClearTuya() {
+            if (!confirm('⚠️ Tem certeza que deseja limpar todas as configurações Tuya? Isto apagará suas credenciais.')) {
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/config/tuya`, {
+                    method: 'DELETE',
+                    headers: getHeaders()
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    showAlert('✅ Configurações Tuya removidas!', 'success');
+                    document.getElementById('tuya-client-id').value = '';
+                    document.getElementById('tuya-client-secret').value = '';
+                    document.getElementById('tuya-region').value = '';
+                    document.getElementById('test-result').classList.remove('show');
+                } else {
+                    showAlert(`❌ ${data.error}`, 'error');
+                }
+            } catch (err) {
+                console.error('Erro ao limpar config:', err);
+                showAlert('❌ Erro ao limpar configurações', 'error');
             }
         }
 

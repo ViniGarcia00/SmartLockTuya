@@ -439,7 +439,7 @@
             <li>
                 <a href="#" class="active" onclick="showPage('home')">
                     <span class="icon">🏠</span>
-                    <span>Página Inicial</span>
+                    <span>Dashboard</span>
                 </a>
             </li>
             <li>
@@ -464,10 +464,10 @@
     </aside>
 
     <main class="main-content">
-        <!-- Página Inicial -->
+        <!-- Dashboard -->
         <div id="page-home" class="page active">
             <div class="page-header">
-                <h2>Página Inicial</h2>
+                <h2>Dashboard</h2>
                 <p>Monitore e controle suas fechaduras inteligentes</p>
             </div>
 

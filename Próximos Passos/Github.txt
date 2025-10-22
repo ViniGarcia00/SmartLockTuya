@@ -1,0 +1,17 @@
+git status
+git add .
+git commit -m "Atualizações de paginas"
+git push
+
+
+git branch                    # Ver branches existentes
+git checkout -b nova-branch    # Criar e mudar pra nova branch
+# (fazer alterações)
+git add .                      # Adicionar mudanças
+git commit -m "mensagem"       # Criar commit
+git push -u origin nova-branch # Enviar pro GitHub
+# (quando terminar)
+git checkout main              # Voltar pra branch principal
+git pull                       # Atualizar a main
+git merge nova-branch          # Unir a branch
+git branch -d nova-branch      # Deletar branch local (opcional)

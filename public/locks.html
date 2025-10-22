@@ -82,6 +82,70 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .page-header > div {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .page-header-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-container {
+            position: relative;
+            min-width: 250px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 40px 10px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-input::placeholder {
+            color: #999;
+        }
+
+        .search-clear {
+            position: absolute;
+            right: 12px;
+            background: none;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 8px;
+            transition: color 0.2s;
+        }
+
+        .search-clear:hover {
+            color: #333;
+        }
+
+        .search-count {
+            font-size: 12px;
+            color: #999;
+            white-space: nowrap;
         }
 
         .page-header h2 {
@@ -480,7 +544,7 @@
             <li>
                 <a href="dashboard.html">
                     <span class="icon">🏠</span>
-                    <span>Página Inicial</span>
+                    <span>Dashboard</span>
                 </a>
             </li>
             <li>
@@ -513,6 +577,27 @@
             <button class="btn btn-primary" onclick="openAddLockModal()">
                 ➕ Adicionar Fechadura
             </button>
+        </div>
+
+        <!-- 🔍 CAMPO DE BUSCA ACIMA DOS CARDS -->
+        <div style="display: flex; gap: 15px; margin-bottom: 20px; align-items: center; flex-wrap: wrap;">
+            <div class="search-container" style="flex: 1; min-width: 250px;">
+                <input 
+                    type="text" 
+                    id="search-input" 
+                    class="search-input" 
+                    placeholder="🔍 Buscar fechaduras..."
+                    oninput="filterLocks(this.value)"
+                />
+                <button 
+                    class="search-clear" 
+                    id="search-clear"
+                    onclick="clearSearch()"
+                    style="display: none;">
+                    ✕
+                </button>
+                <span id="search-count" class="search-count" style="display: none;"></span>
+            </div>
         </div>
 
         <div id="locks-container">
@@ -561,11 +646,11 @@
 
                 <div id="test-lock-result"></div>
 
-                <div style="display: flex; gap: 10px; margin-top: 20px;">
-                    <button type="button" class="btn btn-secondary" onclick="testLockConnection()" style="flex: 1; justify-content: center;">
+                <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: center;">
+                    <button type="button" class="btn btn-secondary" onclick="testLockConnection()" style="justify-content: center;">
                         🔍 Testar Fechadura
                     </button>
-                    <button type="submit" class="btn btn-primary" style="flex: 1; justify-content: center;">
+                    <button type="submit" class="btn btn-primary" style="justify-content: center;">
                         💾 Salvar
                     </button>
                 </div>
@@ -665,8 +750,22 @@
             }
         }
 
-        async function displayLocks(locksData) {
+        async function displayLocks(locksData, searchTerm = '') {
             const container = document.getElementById('locks-container');
+            
+            // Verificar se não há resultados na busca
+            if (locksData.length === 0 && searchTerm) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <p>Nenhuma fechadura encontrada com "<strong>${searchTerm}</strong>"</p>
+                        <button class="btn btn-secondary" onclick="clearSearch()">
+                            Limpar Busca
+                        </button>
+                    </div>
+                `;
+                return;
+            }
             
             // Busca status de todas as fechaduras
             const locksWithStatus = await Promise.all(locksData.map(async (lock) => {
@@ -690,16 +789,9 @@
                 <div class="locks-grid">
                     ${locksWithStatus.map(lock => `
                         <div class="lock-card">
-                            <div class="lock-card-header">
-                                <div class="lock-card-title">
-                                    <h3>${lock.name}</h3>
-                                    <p>${lock.location || 'Sem localização'}</p>
-                                </div>
-                                <div class="lock-status-badge">
-                                    <span class="badge ${lock.online ? 'badge-success' : 'badge-danger'}">
-                                        ${lock.online ? '✅ Online' : '❌ Offline'}
-                                    </span>
-                                </div>
+                            <div class="lock-card-title">
+                                <h3>${lock.name}</h3>
+                                <p>${lock.location || 'Sem localização'}</p>
                             </div>
                             
                             <div class="lock-info">
@@ -707,20 +799,27 @@
                             </div>
                             ${lock.accommodation_id ? `<div class="lock-info"><strong>ID Acomodação:</strong> ${lock.accommodation_id}</div>` : ''}
                             
-                            <div class="lock-actions">
-                                <button class="btn btn-secondary" onclick="editLock('${lock.id}')">
-                                    ✏️ Editar
-                                </button>
-                                <button class="btn btn-danger" onclick="deleteLock('${lock.id}')">
-                                    🗑️ Deletar
-                                </button>
+                            <div class="lock-actions" style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding-top: 15px; border-top: 2px solid #f0f0f0;">
+                                <div>
+                                    <span class="badge ${lock.online ? 'badge-success' : 'badge-danger'}" style="font-size: 13px;">
+                                        ${lock.online ? '✅ Online' : '❌ Offline'}
+                                    </span>
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    <button class="icon-btn" onclick="editLock('${lock.id}')" title="Editar">
+                                        ✏️
+                                    </button>
+                                    <button class="icon-btn delete" onclick="deleteLock('${lock.id}')" title="Deletar">
+                                        🗑️
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     `).join('')}
                 </div>
             `;
         }
-        }
+
 
         function openAddLockModal() {
             document.getElementById('modal-title').textContent = '➕ Nova Fechadura';
@@ -833,47 +932,7 @@
             document.getElementById('test-lock-result').classList.remove('show');
             document.getElementById('lock-modal').classList.add('show');
         }
-                const url = editId ? `${API_URL}/locks/${editId}` : `${API_URL}/locks`;
-                const method = editId ? 'PUT' : 'POST';
-
-                const res = await fetch(url, {
-                    method,
-                    headers: getHeaders(),
-                    body: JSON.stringify({
-                        device_id: deviceId,
-                        nome: name,
-                        localizacao: location
-                    })
-                });
-
-                const data = await res.json();
-
-                if (data.success) {
-                    showAlert(`✅ Fechadura ${editId ? 'atualizada' : 'adicionada'} com sucesso!`, 'success');
-                    closeLockModal();
-                    loadLocks();
-                } else {
-                    showAlert(`❌ ${data.error}`, 'error');
-                }
-            } catch (err) {
-                console.error('Erro:', err);
-                showAlert('❌ Erro ao salvar fechadura', 'error');
-            }
-        }
-
-        function editLock(deviceId) {
-            const lock = locks.find(l => l.id === deviceId);
-            if (!lock) return;
-
-            document.getElementById('modal-title').textContent = '✏️ Editar Fechadura';
-            document.getElementById('edit-lock-id').value = deviceId;
-            document.getElementById('lock-device-id').value = deviceId;
-            document.getElementById('lock-name').value = lock.name;
-            document.getElementById('lock-location').value = lock.location || '';
-            document.getElementById('lock-device-id').disabled = true;
-            document.getElementById('test-lock-result').classList.remove('show');
-            document.getElementById('lock-modal').classList.add('show');
-        }
+        
 
         async function deleteLock(deviceId) {
             const lock = locks.find(l => l.id === deviceId);
@@ -901,6 +960,54 @@
                 console.error('Erro:', err);
                 showAlert('❌ Erro ao deletar fechadura', 'error');
             }
+        }
+
+        /**
+         * Filtra as fechaduras em tempo real conforme o usuário digita
+         * Mostra/esconde o botão de limpar e a contagem de resultados
+         */
+        function filterLocks(searchTerm) {
+            const searchInput = document.getElementById('search-input');
+            const searchClear = document.getElementById('search-clear');
+            const searchCount = document.getElementById('search-count');
+            
+            // Mostrar/esconder botão de limpar
+            if (searchTerm.trim()) {
+                searchClear.style.display = 'block';
+            } else {
+                searchClear.style.display = 'none';
+                searchCount.style.display = 'none';
+                displayLocks(locks);
+                return;
+            }
+
+            // Filtrar fechaduras
+            const filteredLocks = locks.filter(lock => {
+                const name = lock.name.toLowerCase();
+                const location = (lock.location || '').toLowerCase();
+                const search = searchTerm.toLowerCase();
+                return name.includes(search) || location.includes(search);
+            });
+
+            // Atualizar contagem
+            searchCount.style.display = 'inline-block';
+            const resultText = filteredLocks.length === locks.length 
+                ? '' 
+                : `${filteredLocks.length}/${locks.length}`;
+            searchCount.textContent = resultText;
+
+            // Exibir resultados filtrados
+            displayLocks(filteredLocks, searchTerm);
+        }
+
+        /**
+         * Limpa o campo de busca e reexibe todas as fechaduras
+         */
+        function clearSearch() {
+            const searchInput = document.getElementById('search-input');
+            searchInput.value = '';
+            searchInput.focus();
+            filterLocks('');
         }
     </script>
 </body>

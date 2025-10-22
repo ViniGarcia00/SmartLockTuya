@@ -84,6 +84,14 @@
 
         .page-header {
             margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 30px;
+        }
+
+        .page-header > div {
+            flex: 1;
         }
 
         .page-header h2 {
@@ -95,6 +103,56 @@
         .page-header p {
             color: #666;
             font-size: 14px;
+        }
+
+        .search-container {
+            position: relative;
+            min-width: 300px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 40px 10px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-input::placeholder {
+            color: #999;
+        }
+
+        .search-clear {
+            position: absolute;
+            right: 12px;
+            background: none;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 8px;
+            transition: color 0.2s;
+        }
+
+        .search-clear:hover {
+            color: #333;
+        }
+
+        .search-count {
+            font-size: 12px;
+            color: #999;
+            white-space: nowrap;
         }
 
         .warning-box {
@@ -199,6 +257,11 @@
         }
 
         .badge-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge-error {
             background: #f8d7da;
             color: #721c24;
         }
@@ -327,7 +390,7 @@
             <li>
                 <a href="dashboard.html" class="active">
                     <span class="icon">🏠</span>
-                    <span>Página Inicial</span>
+                    <span>Dashboard</span>
                 </a>
             </li>
             <li>
@@ -353,11 +416,32 @@
 
     <main class="main-content">
         <div class="page-header">
-            <h2>Dashboard</h2>
-            <p>Monitore suas fechaduras inteligentes</p>
-            <div style="margin-top: 10px;">
-                <span style="color: #666; font-size: 14px; font-weight: 600;">Status Conta Tuya:</span>
-                <span id="tuya-status" class="badge badge-warning">Verificando...</span>
+            <div>
+                <h2>Dashboard</h2>
+                <p>Monitore suas fechaduras inteligentes</p>
+                <div style="margin-top: 10px;">
+                    <span style="color: #666; font-size: 14px; font-weight: 600;">Status Conta Tuya:</span>
+                    <span id="tuya-status" class="badge badge-warning">Verificando...</span>
+                </div>
+                
+                <!-- 🔍 CAMPO DE BUSCA LOGO ABAIXO DO STATUS TUYA -->
+                <div class="search-container" style="margin-top: 15px;">
+                    <input 
+                        type="text" 
+                        id="search-input" 
+                        class="search-input" 
+                        placeholder="🔍 Buscar fechaduras..."
+                        oninput="filterLocks(this.value)"
+                    />
+                    <button 
+                        class="search-clear" 
+                        id="search-clear"
+                        onclick="clearSearch()"
+                        style="display: none;">
+                        ✕
+                    </button>
+                    <span id="search-count" class="search-count" style="display: none;"></span>
+                </div>
             </div>
         </div>
 
@@ -368,9 +452,11 @@
             </p>
         </div>
 
-        <button class="btn btn-secondary" onclick="refreshAll()" style="width: 100%; margin-bottom: 20px;">
-            🔄 Atualizar Status
-        </button>
+        <div style="display: flex; gap: 15px; margin-bottom: 20px; align-items: flex-end; flex-wrap: wrap;">
+            <button class="btn btn-secondary" onclick="refreshAll()" style="flex: 0 0 auto;">
+                🔄 Atualizar Status
+            </button>
+        </div>
 
         <div id="locks-container">
             <div class="empty-state">
@@ -469,8 +555,61 @@
             }
         }
 
-        async function displayLocks(locksData) {
+        /**
+         * Verifica o status da conexão com a API Tuya
+         * Retorna 3 estados: Online, Offline ou Não configurado
+         * Atualiza o badge de status no cabeçalho do dashboard
+         */
+        async function checkTuyaStatus() {
+            try {
+                const statusElement = document.getElementById('tuya-status');
+                statusElement.textContent = '🔄 Verificando...';
+                statusElement.className = 'badge badge-warning';
+
+                const response = await fetch(`${API_URL}/config/tuya/test`, {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+
+                const data = await response.json();
+
+                if (response.status === 400 && data.error && data.error.includes('Configure')) {
+                    // Não configurado - credenciais não foram definidas
+                    statusElement.textContent = '⚙️ Não configurado';
+                    statusElement.className = 'badge badge-warning';
+                } else if (data.success && data.result && data.result.connected) {
+                    // Online - conexão estabelecida com sucesso
+                    statusElement.textContent = '🟢 Online';
+                    statusElement.className = 'badge badge-success';
+                } else {
+                    // Offline - configurado mas sem comunicação com API Tuya
+                    statusElement.textContent = '🔴 Offline';
+                    statusElement.className = 'badge badge-error';
+                }
+            } catch (err) {
+                console.error('Erro ao verificar status Tuya:', err);
+                const statusElement = document.getElementById('tuya-status');
+                statusElement.textContent = '❌ Erro';
+                statusElement.className = 'badge badge-error';
+            }
+        }
+
+        async function displayLocks(locksData, searchTerm = '') {
             const container = document.getElementById('locks-container');
+            
+            // Verificar se não há resultados na busca
+            if (locksData.length === 0 && searchTerm) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <p>Nenhuma fechadura encontrada com "<strong>${searchTerm}</strong>"</p>
+                        <button class="btn btn-secondary" onclick="clearSearch()">
+                            Limpar Busca
+                        </button>
+                    </div>
+                `;
+                return;
+            }
             
             container.innerHTML = '<div class="empty-state"><div class="loading" style="width: 40px; height: 40px; border-color: #667eea; border-top-color: transparent;"></div><p style="margin-top: 15px;">Carregando status...</p></div>';
 
@@ -514,6 +653,9 @@
                         const batteryText = lock.battery === 'high' ? 'Alta' : lock.battery === 'medium' ? 'Média' : lock.battery === 'low' ? 'Baixa' : 'Desconhecida';
                         const lowBattery = lock.battery === 'low';
                         
+                        // Carrega o contagem de senhas após um pequeno delay
+                        setTimeout(() => loadTemporaryPasswordsCount(lock.id), 100);
+                        
                         return `
                             <div class="card ${lowBattery ? 'low-battery' : ''}">
                                 <div class="card-title">
@@ -536,18 +678,15 @@
                                 </div>
                                 
                                 <div class="status-row">
-                                    <span class="status-label">Estado</span>
-                                    <span class="status-value">
-                                        ${lock.locked !== null ? (lock.locked ? '🔒 Trancada' : '🔓 Destrancada') : '-'}
+                                    <span class="status-label">Senhas Temporárias</span>
+                                    <span class="status-value" id="temp-passwords-count-${lock.id}">
+                                        <span class="badge badge-success">Carregando...</span>
                                     </span>
                                 </div>
                                 
                                 <div class="card-actions">
-                                    <button class="btn btn-secondary" onclick="viewLockDetails('${lock.id}')" style="flex: 1;">
-                                        📊 Ver Detalhes
-                                    </button>
                                     <button class="btn btn-primary" onclick="manageLockPasswords('${lock.id}')" style="flex: 1;">
-                                        🔑 Senhas
+                                        🔑 Senha Temporária
                                     </button>
                                 </div>
                             </div>
@@ -557,24 +696,107 @@
             `;
         }
 
-        function viewLockDetails(deviceId) {
-            localStorage.setItem('currentLockId', deviceId);
-            window.location.href = 'locks.html';
-        }
-
         function manageLockPasswords(deviceId) {
             localStorage.setItem('currentLockId', deviceId);
             window.location.href = 'passwords.html';
         }
 
+        /**
+         * Carrega o contagem de senhas temporárias para uma fechadura
+         * Atualiza o elemento de contagem no card (se ele existir no DOM)
+         * Silenciosamente ignora se o elemento não existir (ex: durante filtro)
+         */
+        async function loadTemporaryPasswordsCount(lockId) {
+            try {
+                const response = await fetch(`${API_URL}/device/${lockId}/temp-passwords`, {
+                    headers: getHeaders()
+                });
+                
+                const data = await response.json();
+                const countElement = document.getElementById(`temp-passwords-count-${lockId}`);
+                
+                // Silenciosamente ignora se o elemento não existe (pode estar filtrado)
+                if (!countElement) {
+                    return;
+                }
+                
+                if (data.success && Array.isArray(data.result)) {
+                    const count = data.result.length;
+                    if (count === 0) {
+                        countElement.innerHTML = '<span class="badge badge-warning">Nenhuma</span>';
+                    } else {
+                        countElement.innerHTML = `<span class="badge badge-success">${count} ${count === 1 ? 'senha' : 'senhas'}</span>`;
+                    }
+                } else {
+                    countElement.innerHTML = '<span class="badge badge-danger">Erro</span>';
+                }
+            } catch (err) {
+                console.error('Erro ao carregar senhas temporárias:', err);
+                const countElement = document.getElementById(`temp-passwords-count-${lockId}`);
+                if (countElement) {
+                    countElement.innerHTML = '<span class="badge badge-danger">Erro</span>';
+                }
+            }
+        }
+
         async function refreshAll() {
             showAlert('🔄 Atualizando status...', 'success');
+            await checkTuyaStatus();
             await loadLocks();
             showAlert('✅ Status atualizado!', 'success');
         }
 
+        /**
+         * Filtra as fechaduras em tempo real conforme o usuário digita
+         * Mostra/esconde o botão de limpar e a contagem de resultados
+         */
+        function filterLocks(searchTerm) {
+            const searchInput = document.getElementById('search-input');
+            const searchClear = document.getElementById('search-clear');
+            const searchCount = document.getElementById('search-count');
+            
+            // Mostrar/esconder botão de limpar
+            if (searchTerm.trim()) {
+                searchClear.style.display = 'block';
+            } else {
+                searchClear.style.display = 'none';
+                searchCount.style.display = 'none';
+                displayLocks(locks);
+                return;
+            }
+
+            // Filtrar fechaduras usando os campos corretos (name e location)
+            const filteredLocks = locks.filter(lock => {
+                const name = (lock.name || '').toLowerCase();
+                const location = (lock.location || '').toLowerCase();
+                const search = searchTerm.toLowerCase();
+                return name.includes(search) || location.includes(search);
+            });
+
+            // Atualizar contagem
+            searchCount.style.display = 'inline-block';
+            const resultText = filteredLocks.length === locks.length 
+                ? '' 
+                : `${filteredLocks.length}/${locks.length}`;
+            searchCount.textContent = resultText;
+
+            // Exibir resultados filtrados
+            displayLocks(filteredLocks, searchTerm);
+        }
+
+        /**
+         * Limpa o campo de busca e reexibe todas as fechaduras
+         */
+        function clearSearch() {
+            const searchInput = document.getElementById('search-input');
+            searchInput.value = '';
+            searchInput.focus();
+            filterLocks('');
+        }
+
         async function init() {
             if (!checkAuth()) return;
+            await checkTuyaStatus();
             await loadLocks();
         }
 

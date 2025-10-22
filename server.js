@@ -1,3 +1,19 @@
+/**
+ * =========================================================
+ * SERVIDOR PRINCIPAL - SmartLock Tuya
+ * =========================================================
+ * Aplicação Express para controle de fechaduras inteligentes
+ * integradas à Tuya Cloud API
+ * 
+ * Funcionalidades principais:
+ * - Gerenciamento de usuários com JWT
+ * - Integração com API Tuya (HMAC-SHA256)
+ * - Cache de tokens para otimizar requisições
+ * - CRUD de fechaduras e senhas temporárias
+ * - Criptografia AES para senhas
+ * =========================================================
+ */
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -10,30 +26,49 @@ const { authenticateToken, requireTuyaConfig, logActivity } = require('./middlew
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// ===== CONFIGURAÇÃO DE MIDDLEWARES =====
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+
+// Middleware de sessão - armazena dados da sessão do usuário
 app.use(session({
-  secret: process.env.SESSION_SECRET,
+  secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
   cookie: { secure: process.env.NODE_ENV === 'production' }
 }));
 
-// Redireciona raiz para login
+// Redireciona raiz para login ou dashboard baseado em autenticação
 app.get('/', (req, res) => {
-  res.redirect('/login.html');
+  const token = req.headers['authorization']?.split(' ')[1] || req.query.token;
+  if (token) {
+    res.redirect('/dashboard.html');
+  } else {
+    res.redirect('/login.html');
+  }
 });
 
 // Rotas de autenticação
 const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);
 
-// Cache de token por usuário
+// ===== CACHE DE TOKENS TUYA =====
+// Armazena tokens de acesso Tuya em memória para evitar requisições repetidas
+// Cada usuário tem seu próprio token cacheado com tempo de expiração
 const tokenCache = new Map();
 
-// Funções Tuya (adaptadas para usar config do usuário)
+// ===== FUNÇÕES DE CRIPTOGRAFIA TUYA =====
+// Padrão: Todas as requisições Tuya requerem assinatura HMAC-SHA256
+
+/**
+ * Gera assinatura para obtenção de token Tuya
+ * Cria a string para assinar: clientId + timestamp + GET + hash + URL
+ * @param {string} clientId - ID do cliente Tuya
+ * @param {string} secret - Secret do cliente Tuya
+ * @param {string} t - Timestamp em milissegundos
+ * @returns {string} Assinatura HMAC-SHA256 em hexadecimal maiúsculo
+ */
 function generateTokenSign(clientId, secret, t) {
   const method = 'GET';
   const url = '/v1.0/token?grant_type=1';
@@ -42,6 +77,17 @@ function generateTokenSign(clientId, secret, t) {
   return crypto.createHmac('sha256', secret).update(stringToSign).digest('hex').toUpperCase();
 }
 
+/**
+ * Gera assinatura para requisições de dados/ações na API Tuya
+ * Inclui o token de acesso na assinatura
+ * @param {string} method - Método HTTP (GET, POST, DELETE)
+ * @param {string} url - Caminho da API Tuya
+ * @param {string} body - Corpo da requisição (JSON stringificado ou vazio)
+ * @param {string} accessToken - Token de acesso obtido anteriormente
+ * @param {string} clientId - ID do cliente Tuya
+ * @param {string} secret - Secret do cliente Tuya
+ * @returns {object} { sign: assinatura, t: timestamp }
+ */
 function generateSign(method, url, body, accessToken, clientId, secret) {
   const t = Date.now().toString();
   const contentHash = crypto.createHash('sha256').update(body).digest('hex');
@@ -50,10 +96,20 @@ function generateSign(method, url, body, accessToken, clientId, secret) {
   return { sign, t };
 }
 
+/**
+ * Obtém ou atualiza o token de acesso Tuya com cache
+ * Verifica se o token está cacheado e ainda válido (com margem de 1 minuto)
+ * Se expirado ou não cacheado, faz nova requisição à API Tuya
+ * 
+ * @param {number} userId - ID do usuário (para chave de cache única)
+ * @param {object} tuyaConfig - Configuração Tuya do usuário
+ * @returns {Promise<string>} Token de acesso válido
+ */
 async function ensureToken(userId, tuyaConfig) {
   const cacheKey = `user_${userId}`;
   const cached = tokenCache.get(cacheKey);
   
+  // Retorna token cacheado se ainda for válido (com margem de 60 segundos)
   if (cached && Date.now() < cached.expireTime - 60000) {
     return cached.accessToken;
   }
@@ -62,6 +118,7 @@ async function ensureToken(userId, tuyaConfig) {
   const sign = generateTokenSign(tuyaConfig.client_id, tuyaConfig.client_secret, t);
 
   try {
+    // Requisição para obter novo token na API Tuya
     const res = await axios.get(`https://${tuyaConfig.region_host}/v1.0/token?grant_type=1`, {
       headers: {
         client_id: tuyaConfig.client_id,
@@ -72,6 +129,7 @@ async function ensureToken(userId, tuyaConfig) {
     });
 
     if (res.data.success) {
+      // Armazena novo token no cache com tempo de expiração
       tokenCache.set(cacheKey, {
         accessToken: res.data.result.access_token,
         expireTime: Date.now() + (res.data.result.expire_time * 1000)
@@ -86,14 +144,13 @@ async function ensureToken(userId, tuyaConfig) {
   }
 }
 
-// ========== ROTAS PROTEGIDAS ==========
+// ========== ROTAS DE FECHADURAS (CRUD) ==========
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// Obter fechaduras do usuário
+/**
+ * GET /api/locks
+ * Obtém todas as fechaduras ativas do usuário autenticado
+ * Requer: JWT token válido em Authorization header
+ */
 app.get('/api/locks', authenticateToken, async (req, res) => {
   try {
     const result = await query(
@@ -116,7 +173,11 @@ app.get('/api/locks', authenticateToken, async (req, res) => {
   }
 });
 
-// Adicionar fechadura
+/**
+ * POST /api/locks
+ * Adiciona uma nova fechadura ao usuário autenticado
+ * Body: { device_id, nome, localizacao, accommodation_id }
+ */
 app.post('/api/locks', authenticateToken, async (req, res) => {
   try {
     const { device_id, nome, localizacao, accommodation_id } = req.body;
@@ -265,29 +326,92 @@ app.get('/api/device/:deviceId/temp-passwords', authenticateToken, requireTuyaCo
 app.delete('/api/device/:deviceId/temp-password/:passwordId', authenticateToken, requireTuyaConfig, async (req, res) => {
   try {
     const { deviceId, passwordId } = req.params;
+    console.log(`🗑️ DELETE - Deletando senha: deviceId=${deviceId}, passwordId=${passwordId}`);
+    console.log(`👤 User ID: ${req.user.id}`);
+    console.log(`🌐 Region Host: ${req.tuyaConfig.region_host}`);
+    
+    // Validação de parâmetros
+    if (!deviceId || !passwordId) {
+      console.error('❌ Parâmetros inválidos:', { deviceId, passwordId });
+      return res.status(400).json({ 
+        success: false, 
+        error: 'deviceId e passwordId são obrigatórios' 
+      });
+    }
+    
     const accessToken = await ensureToken(req.user.id, req.tuyaConfig);
+    console.log(`🔐 Token obtido com sucesso`);
     
     const url = `/v1.0/devices/${deviceId}/door-lock/temp-passwords/${passwordId}`;
-    const { sign, t } = generateSign('DELETE', url, '', accessToken, req.tuyaConfig.client_id, req.tuyaConfig.client_secret);
+    const emptyBody = '';
+    const { sign, t } = generateSign('DELETE', url, emptyBody, accessToken, req.tuyaConfig.client_id, req.tuyaConfig.client_secret);
 
-    const response = await axios.delete(`https://${req.tuyaConfig.region_host}${url}`, {
+    const fullUrl = `https://${req.tuyaConfig.region_host}${url}`;
+    console.log(`📤 DELETE URL: ${fullUrl}`);
+    console.log(`🔑 Headers preparados: client_id=${req.tuyaConfig.client_id}`);
+    console.log(`📊 Timestamp: ${t}`);
+    console.log(`🔐 Sign method: HMAC-SHA256`);
+
+    console.log(`⏳ Enviando requisição DELETE para Tuya...`);
+    const response = await axios.delete(fullUrl, {
       headers: {
         client_id: req.tuyaConfig.client_id,
         access_token: accessToken,
         sign,
         sign_method: 'HMAC-SHA256',
         t,
-      },
+        'Content-Type': 'application/json'
+      }
     });
 
-    res.json(response.data);
+    console.log(`✅ DELETE - Sucesso! Status: ${response.status}`);
+    console.log(`✅ Resposta da API Tuya:`, response.data);
+
+    const result = response.data || { success: true, message: 'Senha deletada com sucesso' };
+    res.json({ success: true, result, message: 'Senha deletada com sucesso' });
   } catch (err) {
-    console.error('Erro ao deletar senha:', err.message);
-    res.status(500).json({ success: false, error: err.response?.data || err.message });
+    console.error('❌ DELETE - Erro:', err.message);
+    
+    if (err.response) {
+      console.error('📊 Status HTTP:', err.response.status);
+      console.error('📝 Response Data:', err.response.data);
+      console.error('📝 Response Headers:', err.response.headers);
+    } else if (err.request) {
+      console.error('📝 Request made but no response:', err.request);
+    } else {
+      console.error('📝 Error Details:', err.stack);
+    }
+    
+    // Verifica se é sucesso (alguns status codes como 204 são sucesso mesmo sendo erro no axios)
+    if (err.response?.status === 404 || 
+        err.response?.status === 204 || 
+        err.response?.data?.success === true ||
+        (err.response?.status >= 200 && err.response?.status < 300)) {
+      console.log(`✅ Status ${err.response?.status} - considerando como sucesso`);
+      return res.json({ success: true, result: { message: 'Senha deletada com sucesso' } });
+    }
+    
+    const errorMsg = err.response?.data?.msg || err.response?.data?.message || err.message || 'Erro desconhecido ao deletar senha';
+    console.error(`❌ Erro final: ${errorMsg}`);
+    
+    res.status(err.response?.status || 500).json({ 
+      success: false, 
+      error: errorMsg,
+      details: err.response?.data 
+    });
   }
 });
 
-// Funções de criptografia
+// ===== FUNÇÕES DE CRIPTOGRAFIA PARA SENHAS TEMPORÁRIAS =====
+
+/**
+ * Descriptografa a chave de ticket retornada pela API Tuya
+ * Usa AES-256-ECB com o client_secret como chave
+ * 
+ * @param {string} ticketKeyHex - Chave criptografada em formato hexadecimal
+ * @param {string} accessSecret - Client Secret do usuário (chave de descriptografia)
+ * @returns {string} Chave descriptografada (16 bytes)
+ */
 function decryptTicketKey(ticketKeyHex, accessSecret) {
   const encryptedBuffer = Buffer.from(ticketKeyHex, 'hex');
   const keyBuffer = Buffer.from(accessSecret, 'utf8');
@@ -298,6 +422,15 @@ function decryptTicketKey(ticketKeyHex, accessSecret) {
   return decrypted.toString('utf8').replace(/\0+$/, '');
 }
 
+/**
+ * Criptografa a senha com AES-128-ECB
+ * Usa os primeiros 16 bytes da chave descriptografada como chave de criptografia
+ * Retorna apenas os primeiros 32 caracteres hex (16 bytes criptografados)
+ * 
+ * @param {string} plaintext - Senha em texto plano (deve ter 7 dígitos)
+ * @param {string} originalKey - Chave descriptografada de 16 bytes
+ * @returns {string} Senha criptografada em hexadecimal maiúsculo (32 caracteres)
+ */
 function encryptPassword(plaintext, originalKey) {
   const key16 = originalKey.substring(0, 16);
   const keyBuffer = Buffer.from(key16, 'utf8');
@@ -309,6 +442,25 @@ function encryptPassword(plaintext, originalKey) {
   return fullHex.substring(0, 32).toUpperCase();
 }
 
+/**
+ * POST /api/device/:deviceId/temp-password
+ * Cria uma senha temporária para uma fechadura
+ * 
+ * Processo de 3 passos:
+ * 1. Obter ticket da API Tuya
+ * 2. Descriptografar ticket_key com client_secret (AES-256-ECB)
+ * 3. Criptografar senha com a chave obtida (AES-128-ECB)
+ * 4. Enviar para API Tuya
+ * 
+ * Body: {
+ *   name: string,
+ *   password: string (7 dígitos),
+ *   startDate: "YYYY-MM-DD",
+ *   startTime: "HH:mm",
+ *   endDate: "YYYY-MM-DD",
+ *   endTime: "HH:mm"
+ * }
+ */
 // Criar senha temporária
 app.post('/api/device/:deviceId/temp-password', authenticateToken, requireTuyaConfig, async (req, res) => {
   try {
@@ -496,6 +648,26 @@ app.post('/api/config/tuya', authenticateToken, async (req, res) => {
     res.json({ success: true, message: 'Configuração salva com sucesso' });
   } catch (err) {
     console.error('Erro ao salvar config:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Deletar configurações Tuya
+app.delete('/api/config/tuya', authenticateToken, async (req, res) => {
+  try {
+    // Deleta a configuração Tuya do usuário
+    await query(
+      'DELETE FROM tuya_configs WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    // Limpa cache de token
+    tokenCache.delete(`user_${req.user.id}`);
+
+    console.log(`✅ Configurações Tuya deletadas para usuário ${req.user.id}`);
+    res.json({ success: true, message: 'Configurações Tuya removidas com sucesso' });
+  } catch (err) {
+    console.error('Erro ao deletar config:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
