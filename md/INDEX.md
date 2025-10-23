@@ -9,7 +9,7 @@
 ### 🚀 Comece por aqui
 - **[QUICK_START.md](QUICK_START.md)** — 5 minutos para começar
 - **[README_VISAO_GERAL.md](README_VISAO_GERAL.md)** — Visão geral completa do projeto
-- **[PASSO7_PIN_JOBS.md](PASSO7_PIN_JOBS.md)** — Documentação PASSO 7 (NOVO)
+- **[PASSO8_LOCK_ADAPTER.md](PASSO8_LOCK_ADAPTER.md)** — Documentação PASSO 8 (NOVO)
 
 ---
 
@@ -38,6 +38,10 @@
 - [PASSO7_PIN_JOBS.md](PASSO7_PIN_JOBS.md) — Guia técnico
 - [PASSO7_FINAL.txt](PASSO7_FINAL.txt) — Sumário visual
 - [PASSO7_RESUMO_FINAL.txt](PASSO7_RESUMO_FINAL.txt) — Conclusão detalhada
+
+### ✅ PASSO 8 — Adapter de Fechadura (Lock Provider)
+- [PASSO8_LOCK_ADAPTER.md](PASSO8_LOCK_ADAPTER.md) — Guia técnico
+- [PASSO8_FINAL.txt](PASSO8_FINAL.txt) — Sumário visual
 
 ---
 
@@ -190,41 +194,39 @@ A: Veja timeline em [README_VISAO_GERAL.md](./README_VISAO_GERAL.md)
 
 ---
 
-## 🗂️ Arquivos Criados em PASSO 7
+## 🗂️ Arquivos Criados em PASSO 8
 
 ### Código
-- `src/lib/pin-generator.ts` — Gerador de PIN + bcrypt hashing
-- `src/jobs/generate-pin.job.ts` — Job processor para gerar PINs
-- `src/jobs/revoke-pin.job.ts` — Job processor para revogar PINs
-- `src/jobs/pin-jobs.ts` — Utilitários para agendamento
-- `src/jobs/reservation-webhook-handler.ts` — Handler de webhooks
-- `src/jobs/generate-pin.job.test.ts` — Testes (19 testes, 100% passing)
+- `src/lib/lock-provider.interface.ts` — Interface ILockProvider
+- `src/lib/mock-lock-provider.ts` — Implementação Mock
+- `src/lib/lock-provider-factory.ts` — Factory com Singleton
+- `src/lib/mock-lock-provider.test.ts` — Testes Mock (15 testes)
+- `src/lib/lock-provider-factory.test.ts` — Testes Factory (13 testes)
 
 ### Documentação (NOVA)
-- `PASSO7_PIN_JOBS.md` — Guia técnico (1485 linhas)
-- `PASSO7_FINAL.txt` — Sumário visual
-- `PASSO7_RESUMO_FINAL.txt` — Conclusão detalhada
+- `PASSO8_LOCK_ADAPTER.md` — Guia técnico
+- `PASSO8_FINAL.txt` — Conclusão detalhada
 
 ### Estatísticas
-- 📊 1.485 linhas de código
-- 🧪 19 testes (100% passing)
-- ⏱️ Tempo médio execução: 3.5s
+- 📊 600+ linhas de código
+- 🧪 28 testes (100% passing)
+- ⏱️ Tempo médio execução: 2.5s
 
 ---
 
 ## ✅ Checklist de Documentação
 
 - ✅ Guia para começar (QUICK_START)
-- ✅ Documentação técnica completa (PASSO5_MODELO_DADOS até PASSO7_PIN_JOBS)
+- ✅ Documentação técnica completa (PASSO3 até PASSO8)
 - ✅ Resumo executivo (PASSO5_RESUMO)
-- ✅ Estatísticas visuais (PASSO5_FINAL até PASSO7_FINAL)
+- ✅ Estatísticas visuais (PASSO5_FINAL até PASSO8_FINAL)
 - ✅ Status geral (PROGRESSO_NOVO)
-- ✅ Visão geral projeto (README_VISAO_GERAL, atualizada 70%)
+- ✅ Visão geral projeto (README_VISAO_GERAL, atualizada 75%)
 - ✅ Instruções Prisma (prisma/README)
 - ✅ Tipos TypeScript (prisma.types.ts)
-- ✅ Exemplos de código (QUICK_START, PASSO5_MODELO_DADOS, PASSO7_PIN_JOBS)
+- ✅ Exemplos de código (QUICK_START, PASSO5_MODELO_DADOS, PASSO7/8_LOCK_ADAPTER)
 - ✅ Índice de docs (Este arquivo!)
-- ✅ Testes unitários (19 testes em PASSO 7)
+- ✅ Testes unitários (28 testes em PASSO 8)
 
 ---
 
@@ -232,9 +234,9 @@ A: Veja timeline em [README_VISAO_GERAL.md](./README_VISAO_GERAL.md)
 
 - ✅ **PASSO 6:** Job Scheduler com BullMQ (Completo)
 - ✅ **PASSO 7:** PIN Jobs com Agendamento (Completo)
-- ⏳ **PASSO 8:** Tuya Integration Real
-- ⏳ **PASSO 9:** SMS/Email Delivery
-- ⏳ **PASSO 10:** Frontend Dashboard
+- ✅ **PASSO 8:** Adapter de Fechadura (Completo)
+- ⏳ **PASSO 9:** Integração Real com Tuya
+- ⏳ **PASSO 10:** SMS/Email Delivery
 
 ---
 
@@ -244,8 +246,8 @@ A: Veja timeline em [README_VISAO_GERAL.md](./README_VISAO_GERAL.md)
 - Exemplos de código em TypeScript/SQL
 - Links relativos funcionam em qualquer directory
 - Atualizado em: **24/10/2025**
-- Versão: **1.0.0-passo7**
-- **Status Geral:** 70% completo (7 de 10 PASSOS)
+- Versão: **1.0.0-passo8**
+- **Status Geral:** 75% completo (8 de 10 PASSOS)
 
 ---
 
@@ -258,6 +260,6 @@ A: Veja timeline em [README_VISAO_GERAL.md](./README_VISAO_GERAL.md)
 ---
 
 **Última atualização:** 24/10/2025  
-**Documentação Completa:** ✅ Sim (até PASSO 7)  
+**Documentação Completa:** ✅ Sim (até PASSO 8)  
 **Ready for Development:** ✅ Sim  
-**Production Ready:** ✅ Parcialmente (até PASSO 7)
+**Production Ready:** ✅ Parcialmente (até PASSO 8)
