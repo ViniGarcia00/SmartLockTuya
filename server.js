@@ -326,6 +326,14 @@ app.get('/api/device/:deviceId/temp-passwords', authenticateToken, async (req, r
       },
     });
 
+    console.log(`📋 GET /temp-passwords - Resposta Tuya:`, JSON.stringify(response.data, null, 2));
+    if (response.data.result && Array.isArray(response.data.result)) {
+      console.log(`📊 Total de senhas: ${response.data.result.length}`);
+      response.data.result.forEach((pwd, idx) => {
+        console.log(`  [${idx}] id: ${pwd.id}, name: ${pwd.name}, effective_time: ${pwd.effective_time}, invalid_time: ${pwd.invalid_time}`);
+      });
+    }
+
     res.json(response.data);
   } catch (err) {
     console.error('Erro ao listar senhas:', err.message);
@@ -587,16 +595,19 @@ app.post('/api/device/:deviceId/temp-password', authenticateToken, async (req, r
 
     // Salva no histórico local
     if (response.data.success) {
+      console.log(`📋 POST /temp-password - Resposta Tuya:`, JSON.stringify(response.data, null, 2));
+      console.log(`🔑 Salvando password_id: ${response.data.result.id}`);
+      
       const lockResult = await query(
         'SELECT id FROM locks WHERE user_id = $1 AND device_id = $2',
         [req.user.id, deviceId]
       );
 
       if (lockResult.rows.length > 0) {
-        await query(
+        const insertResult = await query(
           `INSERT INTO temp_passwords_history 
            (user_id, lock_id, password_id, nome, senha_cripto, data_inicio, data_fim, status) 
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, password_id`,
           [
             req.user.id, 
             lockResult.rows[0].id, 
@@ -608,6 +619,7 @@ app.post('/api/device/:deviceId/temp-password', authenticateToken, async (req, r
             'ativa'
           ]
         );
+        console.log(`✅ Senha inserida no BD - id: ${insertResult.rows[0].id}, password_id: ${insertResult.rows[0].password_id}`);
       }
     }
 
