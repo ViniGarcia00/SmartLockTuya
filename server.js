@@ -379,7 +379,24 @@ app.delete('/api/device/:deviceId/temp-password/:passwordId', authenticateToken,
     });
 
     console.log(`✅ DELETE - Sucesso! Status: ${response.status}`);
-    console.log(`✅ Resposta da API Tuya:`, response.data);
+    console.log(`✅ Resposta da API Tuya:`, JSON.stringify(response.data, null, 2));
+    console.log(`📋 Response Code (result field):`, response.data?.code);
+    console.log(`📋 Response Success:`, response.data?.success);
+    console.log(`📋 Full Response:`, response.data);
+
+    // ✅ REMOVER SENHA DO BANCO DE DADOS LOCAL (usando password_id da Tuya, não o id local)
+    try {
+      const deleteResult = await query(
+        'DELETE FROM temp_passwords_history WHERE password_id = $1 AND user_id = $2 RETURNING id',
+        [passwordId, req.user.id]
+      );
+      console.log(`✅ Senha removida do banco de dados local - Registros deletados: ${deleteResult.rowCount}`);
+      if (deleteResult.rowCount === 0) {
+        console.warn(`⚠️ Nenhum registro encontrado para deletar com password_id=${passwordId}`);
+      }
+    } catch (dbErr) {
+      console.warn(`⚠️ Aviso ao deletar do banco: ${dbErr.message}`);
+    }
 
     const result = response.data || { success: true, message: 'Senha deletada com sucesso' };
     res.json({ success: true, result, message: 'Senha deletada com sucesso' });
@@ -402,6 +419,21 @@ app.delete('/api/device/:deviceId/temp-password/:passwordId', authenticateToken,
         err.response?.data?.success === true ||
         (err.response?.status >= 200 && err.response?.status < 300)) {
       console.log(`✅ Status ${err.response?.status} - considerando como sucesso`);
+      
+      // ✅ REMOVER SENHA DO BANCO DE DADOS LOCAL (mesmo em caso de "erro" com status 204/404)
+      try {
+        const deleteResult = await query(
+          'DELETE FROM temp_passwords_history WHERE password_id = $1 AND user_id = $2 RETURNING id',
+          [passwordId, req.user.id]
+        );
+        console.log(`✅ Senha removida do banco de dados local - Registros deletados: ${deleteResult.rowCount}`);
+        if (deleteResult.rowCount === 0) {
+          console.warn(`⚠️ Nenhum registro encontrado para deletar com password_id=${passwordId}`);
+        }
+      } catch (dbErr) {
+        console.warn(`⚠️ Aviso ao deletar do banco: ${dbErr.message}`);
+      }
+      
       return res.json({ success: true, result: { message: 'Senha deletada com sucesso' } });
     }
     
