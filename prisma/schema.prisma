@@ -1,0 +1,227 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ACCOMMODATION — Acomodação
+// ============================================================================
+
+model Accommodation {
+  id                    String @id @default(cuid())
+  staysAccommodationId  String @unique // ID vindo da API Stays (ex: ACC-STY-001)
+  name                  String
+  status                AccommodationStatus @default(ACTIVE)
+  
+  // Relacionamentos
+  locks                 AccommodationLock[]
+  reservations          Reservation[]
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([staysAccommodationId])
+}
+
+enum AccommodationStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// ============================================================================
+// LOCK — Fechadura Inteligente (Tuya ou outro vendor)
+// ============================================================================
+
+model Lock {
+  id                    String @id @default(cuid())
+  vendor                LockVendor // "TUYA", "OTHER"
+  deviceId              String @unique // ID do dispositivo no vendor
+  alias                 String? // Nome amigável
+  
+  // Relacionamentos
+  accommodations        AccommodationLock[]
+  credentials           Credential[]
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([deviceId])
+  @@index([vendor])
+}
+
+enum LockVendor {
+  TUYA
+  OTHER
+}
+
+// ============================================================================
+// ACCOMMODATION_LOCK — Mapeamento 1:1 entre Acomodação e Fechadura
+// ============================================================================
+
+model AccommodationLock {
+  id                    String @id @default(cuid())
+  
+  // Foreign Keys
+  accommodationId       String
+  lockId                String
+  
+  accommodation         Accommodation @relation(fields: [accommodationId], references: [id], onDelete: Cascade)
+  lock                  Lock @relation(fields: [lockId], references: [id], onDelete: Cascade)
+  
+  // Metadata
+  createdBy             String? // Usuário que criou o mapeamento
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([accommodationId, lockId]) // Uma acomodação não pode ter a mesma fechadura duas vezes
+  @@index([accommodationId])
+  @@index([lockId])
+}
+
+// ============================================================================
+// RESERVATION — Reserva de Hóspede
+// ============================================================================
+
+model Reservation {
+  id                    String @id @default(cuid())
+  staysReservationId    String @unique // ID vindo da API Stays (ex: RES-STY-202510-001)
+  
+  // Foreign Key
+  accommodationId       String
+  accommodation         Accommodation @relation(fields: [accommodationId], references: [id], onDelete: Cascade)
+  
+  // Datas
+  checkInAt             DateTime
+  checkOutAt            DateTime
+  
+  // Status
+  status                ReservationStatus @default(PENDING)
+  
+  // Relacionamentos
+  credentials           Credential[]
+  webhookEvents         WebhookEvent[]
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([staysReservationId])
+  @@index([accommodationId])
+  @@index([status])
+  @@index([checkInAt])
+  @@index([checkOutAt])
+}
+
+enum ReservationStatus {
+  CONFIRMED
+  PENDING
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+// ============================================================================
+// CREDENTIAL — PIN/Senha Temporária para Acesso
+// ============================================================================
+
+model Credential {
+  id                    String @id @default(cuid())
+  
+  // Foreign Keys
+  reservationId         String
+  lockId                String
+  
+  reservation           Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  lock                  Lock @relation(fields: [lockId], references: [id], onDelete: Cascade)
+  
+  // PIN
+  pin                   String // Hash da senha (bcrypt)
+  plainPin              String? // Apenas armazenar temporariamente para envio ao hóspede
+  
+  // Status e Validade
+  status                CredentialStatus @default(ACTIVE)
+  validFrom             DateTime
+  validTo               DateTime
+  
+  // Metadata
+  createdBy             String? // Usuário que criou a credencial
+  revokedBy             String? // Usuário que revogou
+  revokedAt             DateTime?
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([reservationId, lockId]) // Uma reserva tem no máximo um PIN por fechadura
+  @@index([reservationId])
+  @@index([lockId])
+  @@index([status])
+  @@index([validFrom])
+  @@index([validTo])
+}
+
+enum CredentialStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+// ============================================================================
+// WEBHOOK_EVENT — Eventos recebidos via webhook (auditoria)
+// ============================================================================
+
+model WebhookEvent {
+  id                    String @id @default(cuid())
+  eventId               String @unique // ID único do evento (gerado quando recebido)
+  eventType             String // "reservation.created", "reservation.updated", etc
+  
+  // Foreign Key opcional (pode não ter reserva vinculada ainda)
+  reservationId         String?
+  reservation           Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  
+  // Dados brutos
+  rawBody               Json // Payload completo do webhook em JSON
+  
+  // Status de processamento
+  processed             Boolean @default(false)
+  processedAt           DateTime?
+  processError          String? // Mensagem de erro se falhar
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([eventId])
+  @@index([eventType])
+  @@index([reservationId])
+  @@index([processed])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// AUDIT_LOG — Log de todas as ações (opcional, para auditoria)
+// ============================================================================
+
+model AuditLog {
+  id                    String @id @default(cuid())
+  
+  action                String // "CREATE_CREDENTIAL", "REVOKE_CREDENTIAL", etc
+  entity                String // "Credential", "Reservation", etc
+  entityId              String // ID da entidade afetada
+  
+  userId                String? // Usuário que realizou a ação
+  details               Json? // Dados adicionais
+  
+  createdAt             DateTime @default(now())
+
+  @@index([action])
+  @@index([entity])
+  @@index([entityId])
+  @@index([userId])
+  @@index([createdAt])
+}
