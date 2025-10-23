@@ -1,14 +1,12 @@
 ATUALIZAÇÕES
 
 PROBLEMAS
-- Verificar as variáveis que estão sendo lidas no .env
 
 GERAL
 
 DASHBOARD
 
 PASSWORD
-- Deixar Botão Deletar funcional, esta dando erro e não deleta
 
 FECHADURAS
 
@@ -17,10 +15,8 @@ CONFIGURAÇÕES
 
 
 MÓDULOS
-- Tuya planos
-- Testar online o sistema
+- Testar adicionar uma nova fechadura
 -----------------------------------------------------------------
-- Deletar senha temporaria
 - API com Stays
 - Criação, atualização e limpeza de reservas
 - Criação das senhas temporárias automaticamente
@@ -31,6 +27,9 @@ MÓDULOS
 - Perfil de usuário
 - Barra superior com: Status Tuya, Login com informações de usuário
 -----------------------------------------------------------------
+- Tuya Planos
+- Funcionamento Online
+-----------------------------------------------------------------
 - Sistema de notificação
 - Dividir por casa
 - Adicionar sensores
@@ -38,6 +37,8 @@ MÓDULOS
 - Senha remoto para limpeza e manutenção
 - Notificação de primeiro acesso
 - Numero de celular para habilitar a conta
+- Simplificar sistema de cadastro de fechadura
+- Senha temporária sendo deletada mais ou menos
 
 EXECUTADO
 - Funcional senha temporária
@@ -51,4 +52,7 @@ EXECUTADO
 - Sistema de busca
 - Sistema de Login
 - Depois que estiver cadastrado quando clicar editar tem o campo Senha principal
+- Testar online o sistema
+- Delete funcionando mais ou menos
+- Limpeza geral no programa
 

@@ -496,7 +496,6 @@
             const sessionExpires = localStorage.getItem('session_expires');
             
             if (!token || !sessionId || !user || !sessionExpires) {
-                console.warn('❌ Dados de autenticação incompletos');
                 localStorage.removeItem('token');
                 localStorage.removeItem('session_id');
                 localStorage.removeItem('user');
@@ -509,7 +508,6 @@
             // Verifica se sessão expirou
             const expiryTime = new Date(sessionExpires);
             if (new Date() > expiryTime) {
-                console.warn('❌ Sessão expirada');
                 localStorage.removeItem('token');
                 localStorage.removeItem('session_id');
                 localStorage.removeItem('user');
@@ -572,8 +570,6 @@
                 const data = await response.json();
                 
                 if (!data.valid) {
-                    console.warn('❌ Sessão inválida:', data.message);
-                    
                     // Limpa localStorage
                     localStorage.removeItem('token');
                     localStorage.removeItem('session_id');

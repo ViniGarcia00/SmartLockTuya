@@ -14,28 +14,21 @@ const pool = new Pool({
 
 // Testa a conexão
 pool.on('connect', () => {
-  console.log('✅ Conectado ao banco de dados PostgreSQL');
+  console.log('Conectado ao banco de dados PostgreSQL');
 });
 
 pool.on('error', (err) => {
-  console.error('❌ Erro inesperado no pool PostgreSQL:', err);
+  console.error('Erro no pool PostgreSQL:', err);
   process.exit(-1);
 });
 
 // Função auxiliar para executar queries
 const query = async (text, params) => {
-  const start = Date.now();
   try {
     const res = await pool.query(text, params);
-    const duration = Date.now() - start;
-    
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📊 Query executada:', { text, duration: `${duration}ms`, rows: res.rowCount });
-    }
-    
     return res;
   } catch (error) {
-    console.error('❌ Erro na query:', error);
+    console.error('Erro na query:', error.message);
     throw error;
   }
 };

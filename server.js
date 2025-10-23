@@ -326,23 +326,9 @@ app.get('/api/device/:deviceId/temp-passwords', authenticateToken, async (req, r
       },
     });
 
-    console.log(`📋 GET /temp-passwords - Resposta Tuya:`, JSON.stringify(response.data, null, 2));
-    
-    // 🔥 FILTRAR SENHAS COM PHASE 0 (DELETADAS)
+    // Filtrar senhas deletadas (phase === 0)
     if (response.data.result && Array.isArray(response.data.result)) {
-      const totalBefore = response.data.result.length;
-      // Manter apenas senhas que NÃO estão deletadas (phase !== 0)
       response.data.result = response.data.result.filter(pwd => pwd.phase !== 0);
-      const totalAfter = response.data.result.length;
-      
-      if (totalBefore !== totalAfter) {
-        console.log(`🗑️ Removido ${totalBefore - totalAfter} senhas deletadas (phase: 0)`);
-      }
-      
-      console.log(`📊 Total de senhas ATIVAS: ${totalAfter}`);
-      response.data.result.forEach((pwd, idx) => {
-        console.log(`  [${idx}] id: ${pwd.id}, name: ${pwd.name}, phase: ${pwd.phase}, effective_time: ${pwd.effective_time}, invalid_time: ${pwd.invalid_time}`);
-      });
     }
 
     res.json(response.data);
@@ -359,13 +345,8 @@ app.delete('/api/device/:deviceId/temp-password/:passwordId', authenticateToken,
     const regionHost = process.env.TUYA_REGION_HOST;
     const clientId = process.env.TUYA_CLIENT_ID;
     
-    console.log(`🗑️ DELETE - Deletando senha: deviceId=${deviceId}, passwordId=${passwordId}`);
-    console.log(`👤 User ID: ${req.user.id}`);
-    console.log(`🌐 Region Host: ${regionHost}`);
-    
     // Validação de parâmetros
     if (!deviceId || !passwordId) {
-      console.error('❌ Parâmetros inválidos:', { deviceId, passwordId });
       return res.status(400).json({ 
         success: false, 
         error: 'deviceId e passwordId são obrigatórios' 
@@ -373,20 +354,10 @@ app.delete('/api/device/:deviceId/temp-password/:passwordId', authenticateToken,
     }
     
     const accessToken = await ensureToken(req.user.id);
-    console.log(`🔐 Token obtido com sucesso`);
-    
     const url = `/v1.0/devices/${deviceId}/door-lock/temp-passwords/${passwordId}`;
-    const emptyBody = '';
-    const { sign, t } = generateSign('DELETE', url, emptyBody, accessToken);
+    const { sign, t } = generateSign('DELETE', url, '', accessToken);
 
-    const fullUrl = `https://${regionHost}${url}`;
-    console.log(`📤 DELETE URL: ${fullUrl}`);
-    console.log(`🔑 Headers preparados: client_id=${clientId}`);
-    console.log(`📊 Timestamp: ${t}`);
-    console.log(`🔐 Sign method: HMAC-SHA256`);
-
-    console.log(`⏳ Enviando requisição DELETE para Tuya...`);
-    const response = await axios.delete(fullUrl, {
+    const response = await axios.delete(`https://${regionHost}${url}`, {
       headers: {
         client_id: clientId,
         access_token: accessToken,
@@ -397,72 +368,43 @@ app.delete('/api/device/:deviceId/temp-password/:passwordId', authenticateToken,
       }
     });
 
-    console.log(`✅ DELETE - Sucesso! Status: ${response.status}`);
-    console.log(`✅ Resposta da API Tuya:`, JSON.stringify(response.data, null, 2));
-    console.log(`📋 Response Code (result field):`, response.data?.code);
-    console.log(`📋 Response Success:`, response.data?.success);
-    console.log(`📋 Full Response:`, response.data);
-
-    // ✅ REMOVER SENHA DO BANCO DE DADOS LOCAL (usando password_id da Tuya, não o id local)
+    // Remover senha do banco de dados local
     try {
-      const deleteResult = await query(
-        'DELETE FROM temp_passwords_history WHERE password_id = $1 AND user_id = $2 RETURNING id',
+      await query(
+        'DELETE FROM temp_passwords_history WHERE password_id = $1 AND user_id = $2',
         [passwordId, req.user.id]
       );
-      console.log(`✅ Senha removida do banco de dados local - Registros deletados: ${deleteResult.rowCount}`);
-      if (deleteResult.rowCount === 0) {
-        console.warn(`⚠️ Nenhum registro encontrado para deletar com password_id=${passwordId}`);
-      }
     } catch (dbErr) {
-      console.warn(`⚠️ Aviso ao deletar do banco: ${dbErr.message}`);
+      console.error('Erro ao deletar do banco:', dbErr.message);
     }
 
-    const result = response.data || { success: true, message: 'Senha deletada com sucesso' };
-    res.json({ success: true, result, message: 'Senha deletada com sucesso' });
+    res.json({ success: true, message: 'Senha deletada com sucesso' });
   } catch (err) {
-    console.error('❌ DELETE - Erro:', err.message);
-    
-    if (err.response) {
-      console.error('📊 Status HTTP:', err.response.status);
-      console.error('📝 Response Data:', err.response.data);
-      console.error('📝 Response Headers:', err.response.headers);
-    } else if (err.request) {
-      console.error('📝 Request made but no response:', err.request);
-    } else {
-      console.error('📝 Error Details:', err.stack);
-    }
-    
-    // Verifica se é sucesso (alguns status codes como 204 são sucesso mesmo sendo erro no axios)
+    // Alguns status codes como 204/404 são sucesso
     if (err.response?.status === 404 || 
         err.response?.status === 204 || 
         err.response?.data?.success === true ||
         (err.response?.status >= 200 && err.response?.status < 300)) {
-      console.log(`✅ Status ${err.response?.status} - considerando como sucesso`);
       
-      // ✅ REMOVER SENHA DO BANCO DE DADOS LOCAL (mesmo em caso de "erro" com status 204/404)
+      // Remover do banco mesmo em caso de sucesso/notfound
       try {
-        const deleteResult = await query(
-          'DELETE FROM temp_passwords_history WHERE password_id = $1 AND user_id = $2 RETURNING id',
+        await query(
+          'DELETE FROM temp_passwords_history WHERE password_id = $1 AND user_id = $2',
           [passwordId, req.user.id]
         );
-        console.log(`✅ Senha removida do banco de dados local - Registros deletados: ${deleteResult.rowCount}`);
-        if (deleteResult.rowCount === 0) {
-          console.warn(`⚠️ Nenhum registro encontrado para deletar com password_id=${passwordId}`);
-        }
       } catch (dbErr) {
-        console.warn(`⚠️ Aviso ao deletar do banco: ${dbErr.message}`);
+        console.error('Erro ao deletar do banco:', dbErr.message);
       }
       
-      return res.json({ success: true, result: { message: 'Senha deletada com sucesso' } });
+      return res.json({ success: true, message: 'Senha deletada com sucesso' });
     }
     
-    const errorMsg = err.response?.data?.msg || err.response?.data?.message || err.message || 'Erro desconhecido ao deletar senha';
-    console.error(`❌ Erro final: ${errorMsg}`);
+    const errorMsg = err.response?.data?.msg || err.response?.data?.message || err.message || 'Erro ao deletar senha';
+    console.error('Erro ao deletar senha:', errorMsg);
     
     res.status(err.response?.status || 500).json({ 
       success: false, 
-      error: errorMsg,
-      details: err.response?.data 
+      error: errorMsg
     });
   }
 });
@@ -606,19 +548,16 @@ app.post('/api/device/:deviceId/temp-password', authenticateToken, async (req, r
 
     // Salva no histórico local
     if (response.data.success) {
-      console.log(`📋 POST /temp-password - Resposta Tuya:`, JSON.stringify(response.data, null, 2));
-      console.log(`🔑 Salvando password_id: ${response.data.result.id}`);
-      
       const lockResult = await query(
         'SELECT id FROM locks WHERE user_id = $1 AND device_id = $2',
         [req.user.id, deviceId]
       );
 
       if (lockResult.rows.length > 0) {
-        const insertResult = await query(
+        await query(
           `INSERT INTO temp_passwords_history 
            (user_id, lock_id, password_id, nome, senha_cripto, data_inicio, data_fim, status) 
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, password_id`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
           [
             req.user.id, 
             lockResult.rows[0].id, 
@@ -630,7 +569,6 @@ app.post('/api/device/:deviceId/temp-password', authenticateToken, async (req, r
             'ativa'
           ]
         );
-        console.log(`✅ Senha inserida no BD - id: ${insertResult.rows[0].id}, password_id: ${insertResult.rows[0].password_id}`);
       }
     }
 
@@ -668,7 +606,6 @@ app.get('/api/config/tuya', authenticateToken, async (req, res) => {
 // POST /api/config/tuya - Não faz mais nada (credenciais vêm do .env)
 app.post('/api/config/tuya', authenticateToken, async (req, res) => {
   try {
-    console.log('⚠️ Tentativa de salvar configuração Tuya - usando .env em vez de banco de dados');
     res.json({ 
       success: true, 
       message: 'As credenciais Tuya são configuradas via variáveis de ambiente (.env)',
@@ -683,8 +620,6 @@ app.post('/api/config/tuya', authenticateToken, async (req, res) => {
 // DELETE /api/config/tuya - Não faz mais nada (credenciais vêm do .env)
 app.delete('/api/config/tuya', authenticateToken, async (req, res) => {
   try {
-    console.log('⚠️ Tentativa de deletar configuração Tuya - usando .env em vez de banco de dados');
-    
     // Limpa cache de token
     tokenCache.delete(`user_${req.user.id}`);
 
@@ -820,60 +755,7 @@ app.post('/api/config/tuya/test', authenticateToken, async (req, res) => {
   }
 });
 
-// DEBUG: Analisar senhas stuck em phase 3
-app.get('/api/debug/phase3-analysis/:deviceId', authenticateToken, async (req, res) => {
-  try {
-    const { deviceId } = req.params;
-    const accessToken = await ensureToken(req.user.id);
-    const regionHost = process.env.TUYA_REGION_HOST;
-    const clientId = process.env.TUYA_CLIENT_ID;
-    
-    const url = `/v1.0/devices/${deviceId}/door-lock/temp-passwords`;
-    const { sign, t } = generateSign('GET', url, '', accessToken);
-
-    const response = await axios.get(`https://${regionHost}${url}`, {
-      headers: {
-        client_id: clientId,
-        access_token: accessToken,
-        sign,
-        sign_method: 'HMAC-SHA256',
-        t,
-      },
-    });
-
-    const now = Math.floor(Date.now() / 1000);
-    const phase3Passwords = response.data.result.filter(p => p.phase === 3);
-    
-    const analysis = phase3Passwords.map(p => {
-      const hoursSinceStart = (now - p.effective_time) / 3600;
-      const hoursUntilExpires = (p.invalid_time - now) / 3600;
-      return {
-        id: p.id,
-        name: p.name,
-        created: new Date(p.effective_time * 1000).toISOString(),
-        expires: new Date(p.invalid_time * 1000).toISOString(),
-        hoursSinceCreated: hoursSinceStart.toFixed(2),
-        hoursUntilExpires: hoursUntilExpires.toFixed(2),
-        status: '🔴 PRESO em Phase 3 (A ser deletada)',
-        insight: hoursSinceStart > 24 ? '❌ Mais de 24h e ainda não deletou!' : '⏳ Ainda dentro do prazo'
-      };
-    });
-
-    res.json({
-      success: true,
-      totalPasswords: response.data.result.length,
-      phase3Count: phase3Passwords.length,
-      analysis
-    });
-  } catch (err) {
-    console.error('Erro na análise:', err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
 // Inicializa servidor
 app.listen(PORT, () => {
-  console.log(`\n🚀 Servidor rodando em http://localhost:${PORT}`);
-  console.log(`📊 Banco de dados: PostgreSQL`);
-  console.log(`✅ Sistema de autenticação ativo\n`);
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
