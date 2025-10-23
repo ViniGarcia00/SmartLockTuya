@@ -1,5 +1,55 @@
 # 📈 SmartLock Tuya - Progresso do Desenvolvimento
 
+## 🎯 PASSO 6 — Job Scheduler com BullMQ ✅ CONCLUÍDO
+
+### 📊 O que foi entregue:
+
+#### 1. **Queue Configuration** (`src/lib/queue.ts`) ✅
+- Redis connection com retry automático
+- generatePinQueue (3 tentativas, backoff exponencial)
+- revokePinQueue (3 tentativas, backoff exponencial)
+- getQueueHealth() para monitoramento
+
+#### 2. **Queue Processors** (`src/lib/queue-processor.ts`) ✅
+- processGeneratePin() com lock distribuído
+- processRevokePin() com lock distribuído
+- acquireLock() & releaseLock() para evitar duplicatas
+- createWorkers() para inicializar workers
+
+#### 3. **Queue Utilities** (`src/lib/queue-utils.ts`) ✅
+- scheduleGeneratePin(reservationId, lockId, pin, checkInAt)
+- scheduleRevokePin(reservationId, lockId, checkOutAt)
+- cancelScheduledJobs(reservationId)
+- getScheduledJobStatus(reservationId, type)
+- listQueueJobs(queueName)
+- clearFailedJobs(queueName)
+
+#### 4. **Complete Test Suite** (`src/lib/queue-utils.test.ts`) ✅
+- 20+ test cases
+- Schedule tests
+- Cancel tests
+- Status checking
+- List queue jobs
+- Error handling
+- Integration tests
+
+#### 5. **Environment Configuration** ✅
+- REDIS_URL adicionado ao `.env`
+- .env.example atualizado
+- Dependencies instaladas (bullmq, ioredis)
+
+---
+
+### 📊 Estatísticas PASSO 6:
+- **Linhas de Código:** 1000+
+- **Arquivos Criados:** 4
+- **Testes:** 20+
+- **Filas:** 2 (generatePin, revokePin)
+- **Workers:** 2 (concurrency 5 cada)
+- **Features:** 12+ (lock, retry, health check, etc)
+
+---
+
 ## 🎯 PASSO 5 — Modelo de Dados ✅ CONCLUÍDO
 
 ### 📊 O que foi entregue:
