@@ -5,6 +5,7 @@
 ### 🚀 Comece por aqui
 - **[QUICK_START.md](./QUICK_START.md)** — 5 minutos para começar
 - **[README_VISAO_GERAL.md](./README_VISAO_GERAL.md)** — Visão geral do projeto inteiro
+- **[PASSO6_JOB_SCHEDULER.md](./PASSO6_JOB_SCHEDULER.md)** — Documentação PASSO 6 (NOVO)
 
 ---
 
@@ -12,9 +13,10 @@
 
 ### 👨‍💻 Para Desenvolvedores
 1. **[QUICK_START.md](./QUICK_START.md)** — Como usar o banco de dados
-2. **[PASSO5_MODELO_DADOS.md](./PASSO5_MODELO_DADOS.md)** — Guia técnico completo
-3. **[prisma/README.md](./prisma/README.md)** — Instruções Prisma
-4. **[src/types/prisma.types.ts](./src/types/prisma.types.ts)** — Tipos TypeScript
+2. **[PASSO5_MODELO_DADOS.md](./PASSO5_MODELO_DADOS.md)** — Guia técnico completo Prisma
+3. **[PASSO6_JOB_SCHEDULER.md](./PASSO6_JOB_SCHEDULER.md)** — Guia técnico completo BullMQ (NOVO)
+4. **[prisma/README.md](./prisma/README.md)** — Instruções Prisma
+5. **[src/types/prisma.types.ts](./src/types/prisma.types.ts)** — Tipos TypeScript
 
 ### 👔 Para Product Managers / Leads
 1. **[PASSO5_RESUMO.md](./PASSO5_RESUMO.md)** — Resumo executivo
@@ -41,7 +43,16 @@ smartlock-tuya/
 │   ├── README_VISAO_GERAL.md          Visão geral do projeto (NOVO)
 │   └── QUICK_START.md                 Guia rápido (NOVO)
 │
-├── 📋 PASSO 5 ESPECÍFICO
+├── 📋 PASSO 6 ESPECÍFICO
+   ├── PASSO6_JOB_SCHEDULER.md         Guia técnico (NOVO)
+   ├── PASSO6_FINAL.txt                Sumário visual (NOVO)
+   └── src/lib/
+       ├── queue.ts                    Queue config
+       ├── queue-processor.ts          Workers
+       ├── queue-utils.ts              Utilities
+       └── queue-utils.test.ts         Testes
+
+📋 PASSO 5 ESPECÍFICO
 │   ├── PASSO5_MODELO_DADOS.md         Guia técnico (NOVO)
 │   ├── PASSO5_RESUMO.md               Resumo executivo (NOVO)
 │   ├── PASSO5_FINAL.txt               Sumário visual (NOVO)
