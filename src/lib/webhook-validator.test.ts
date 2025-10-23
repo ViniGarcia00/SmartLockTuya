@@ -148,7 +148,7 @@ describe('Webhook Validator', () => {
     });
 
     it('should reject payload without event', () => {
-      const payload = { ...validPayload };
+      const payload = { ...validPayload } as any;
       delete payload.event;
 
       const result = validateWebhookPayload(payload);
@@ -157,7 +157,7 @@ describe('Webhook Validator', () => {
     });
 
     it('should reject payload without data', () => {
-      const payload = { ...validPayload };
+      const payload = { ...validPayload } as any;
       delete payload.data;
 
       const result = validateWebhookPayload(payload);
@@ -166,7 +166,7 @@ describe('Webhook Validator', () => {
     });
 
     it('should reject payload without timestamp', () => {
-      const payload = { ...validPayload };
+      const payload = { ...validPayload } as any;
       delete payload.timestamp;
 
       const result = validateWebhookPayload(payload);

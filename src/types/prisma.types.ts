@@ -2,36 +2,16 @@
  * Tipos e Interfaces Prisma para SmartLock Tuya
  * 
  * Arquivo auxiliar para tipagem completa de operações com banco de dados
+ * 
+ * ⚠️ NOTA: Os tipos Prisma são gerados automaticamente pelo Prisma CLI
+ * Se faltarem tipos, execute: npx prisma generate
  */
 
-import {
-  Accommodation,
-  Lock,
-  AccommodationLock,
-  Reservation,
-  Credential,
-  WebhookEvent,
-  AuditLog,
-  AccommodationStatus,
-  LockVendor,
-  ReservationStatus,
-  CredentialStatus,
-} from "@prisma/client";
+// Importar tipos gerados pelo Prisma
+import type { PrismaClient } from "@prisma/client";
 
-// Re-exports para facilitar importação
-export type {
-  Accommodation,
-  Lock,
-  AccommodationLock,
-  Reservation,
-  Credential,
-  WebhookEvent,
-  AuditLog,
-  AccommodationStatus,
-  LockVendor,
-  ReservationStatus,
-  CredentialStatus,
-};
+// Re-exportar Prisma Client para facilitar importações
+export type { PrismaClient };
 
 /**
  * DTO para criar uma acomodação
@@ -39,14 +19,13 @@ export type {
 export interface CreateAccommodationDTO {
   staysAccommodationId: string;
   name: string;
-  status?: AccommodationStatus;
 }
 
 /**
  * DTO para criar uma fechadura
  */
 export interface CreateLockDTO {
-  vendor: LockVendor;
+  vendor: string;
   deviceId: string;
   alias?: string;
 }
@@ -68,7 +47,6 @@ export interface CreateReservationDTO {
   accommodationId: string;
   checkInAt: Date;
   checkOutAt: Date;
-  status?: ReservationStatus;
 }
 
 /**
@@ -79,7 +57,6 @@ export interface CreateCredentialDTO {
   lockId: string;
   pin: string; // hash bcrypt
   plainPin?: string; // temporário
-  status?: CredentialStatus;
   validFrom: Date;
   validTo: Date;
   createdBy?: string;
@@ -153,49 +130,100 @@ export interface WebhookEventReport {
 }
 
 /**
- * Tipos para queries avançadas
+ * Enums customizados para tipos comuns
  */
-export interface ReservationWithCredentials extends Reservation {
-  credentials: Credential[];
-  accommodation: Accommodation;
+export enum AccommodationStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
 }
 
-export interface AccommodationWithLocks extends Accommodation {
-  locks: AccommodationLockWithDetails[];
+export enum LockVendor {
+  TUYA = "TUYA",
+  AUGUST = "AUGUST",
+  YALE = "YALE",
+  OTHER = "OTHER",
 }
 
-export interface AccommodationLockWithDetails extends AccommodationLock {
-  lock: Lock;
+export enum ReservationStatus {
+  PENDING = "PENDING",
+  CONFIRMED = "CONFIRMED",
+  CANCELLED = "CANCELLED",
+  COMPLETED = "COMPLETED",
+  NO_SHOW = "NO_SHOW",
 }
 
-export interface CredentialWithDetails extends Credential {
-  reservation: Reservation;
-  lock: Lock;
+export enum CredentialStatus {
+  ACTIVE = "ACTIVE",
+  REVOKED = "REVOKED",
+  EXPIRED = "EXPIRED",
 }
 
 /**
- * Enums para facilitar uso
+ * Tipos para queries avançadas
+ */
+export interface ReservationWithCredentials {
+  id: string;
+  staysReservationId: string;
+  accommodationId: string;
+  checkInAt: Date;
+  checkOutAt: Date;
+  status: ReservationStatus;
+  credentials: Array<{ id: string; pin: string; validFrom: Date; validTo: Date }>;
+  accommodation: { id: string; name: string };
+}
+
+export interface AccommodationWithLocks {
+  id: string;
+  staysAccommodationId: string;
+  name: string;
+  status: AccommodationStatus;
+  locks: Array<{ lockId: string; lock: { id: string; deviceId: string; vendor: LockVendor } }>;
+}
+
+export interface AccommodationLockWithDetails {
+  id: string;
+  accommodationId: string;
+  lockId: string;
+  lock: { id: string; deviceId: string; vendor: LockVendor };
+}
+
+export interface CredentialWithDetails {
+  id: string;
+  reservationId: string;
+  lockId: string;
+  pin: string;
+  validFrom: Date;
+  validTo: Date;
+  status: CredentialStatus;
+  reservation: { id: string; staysReservationId: string };
+  lock: { id: string; deviceId: string; vendor: LockVendor };
+}
+
+/**
+ * Enum options para facilitar uso
  */
 export const AccommodationStatusOptions = {
-  ACTIVE: "ACTIVE" as AccommodationStatus,
-  INACTIVE: "INACTIVE" as AccommodationStatus,
-};
+  ACTIVE: AccommodationStatus.ACTIVE,
+  INACTIVE: AccommodationStatus.INACTIVE,
+} as const;
 
 export const LockVendorOptions = {
-  TUYA: "TUYA" as LockVendor,
-  OTHER: "OTHER" as LockVendor,
-};
+  TUYA: LockVendor.TUYA,
+  AUGUST: LockVendor.AUGUST,
+  YALE: LockVendor.YALE,
+  OTHER: LockVendor.OTHER,
+} as const;
 
 export const ReservationStatusOptions = {
-  CONFIRMED: "CONFIRMED" as ReservationStatus,
-  PENDING: "PENDING" as ReservationStatus,
-  CANCELLED: "CANCELLED" as ReservationStatus,
-  COMPLETED: "COMPLETED" as ReservationStatus,
-  NO_SHOW: "NO_SHOW" as ReservationStatus,
-};
+  PENDING: ReservationStatus.PENDING,
+  CONFIRMED: ReservationStatus.CONFIRMED,
+  CANCELLED: ReservationStatus.CANCELLED,
+  COMPLETED: ReservationStatus.COMPLETED,
+  NO_SHOW: ReservationStatus.NO_SHOW,
+} as const;
 
 export const CredentialStatusOptions = {
-  ACTIVE: "ACTIVE" as CredentialStatus,
-  REVOKED: "REVOKED" as CredentialStatus,
-  EXPIRED: "EXPIRED" as CredentialStatus,
-};
+  ACTIVE: CredentialStatus.ACTIVE,
+  REVOKED: CredentialStatus.REVOKED,
+  EXPIRED: CredentialStatus.EXPIRED,
+} as const;

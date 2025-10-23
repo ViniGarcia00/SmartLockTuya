@@ -10,10 +10,9 @@
  * - GET /v1/reservations/updated-since?timestamp=ISO&limit=50
  */
 
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const { Request, Response, NextFunction } = require('express');
+import express, { Request, Response, NextFunction } from 'express';
+import path from 'path';
+import fs from 'fs';
 
 // Tipos
 import type {
@@ -56,14 +55,14 @@ export function createMockServer() {
   // Logger customizado
   app.use((req: Request, res: Response, next: NextFunction) => {
     const timestamp = new Date().toISOString();
-    console.log(`\n[${timestamp}] 📡 ${req.method.toUpperCase()} ${req.path}`);
+    console.log(`\n[${timestamp}] 📡 ${req.method.toUpperCase()} ${req.originalUrl}`);
 
     if (Object.keys(req.query).length > 0) {
       console.log(`    Params:`, req.query);
     }
 
     res.on('finish', () => {
-      console.log(`    Status: ${res.statusCode} ${res.statusMessage}`);
+      console.log(`    Status: ${res.statusCode}`);
     });
 
     next();
@@ -79,13 +78,15 @@ export function createMockServer() {
 
       // Validar
       if (limit <= 0 || limit > 100) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid limit parameter (deve estar entre 1 e 100)',
-          errorType: 'VALIDATION_ERROR',
-          statusCode: 400,
-          timestamp: new Date().toISOString(),
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: 'Invalid limit parameter (deve estar entre 1 e 100)',
+            errorType: 'VALIDATION_ERROR',
+            statusCode: 400,
+            timestamp: new Date().toISOString(),
+          });
       }
 
       // Aplicar paginação
@@ -107,16 +108,20 @@ export function createMockServer() {
       };
 
       console.log(`    ✅ Retornando ${paginatedData.length}/${total} reservas`);
-      res.status(200).json(response);
+      res
+        .status(200)
+        .json(response);
     } catch (error) {
       console.error('    ❌ Erro:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Internal server error',
-        errorType: 'UNKNOWN_ERROR',
-        statusCode: 500,
-        timestamp: new Date().toISOString(),
-      });
+      res
+        .status(500)
+        .json({
+          success: false,
+          error: 'Internal server error',
+          errorType: 'UNKNOWN_ERROR',
+          statusCode: 500,
+          timestamp: new Date().toISOString(),
+        });
     }
   });
 
@@ -130,13 +135,15 @@ export function createMockServer() {
 
       // Validar
       if (limit <= 0 || limit > 100) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid limit parameter',
-          errorType: 'VALIDATION_ERROR',
-          statusCode: 400,
-          timestamp: new Date().toISOString(),
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: 'Invalid limit parameter',
+            errorType: 'VALIDATION_ERROR',
+            statusCode: 400,
+            timestamp: new Date().toISOString(),
+          });
       }
 
       // Aplicar paginação
@@ -158,16 +165,20 @@ export function createMockServer() {
       };
 
       console.log(`    ✅ Retornando ${paginatedData.length}/${total} acomodações`);
-      res.status(200).json(response);
+      res
+        .status(200)
+        .json(response);
     } catch (error) {
       console.error('    ❌ Erro:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Internal server error',
-        errorType: 'UNKNOWN_ERROR',
-        statusCode: 500,
-        timestamp: new Date().toISOString(),
-      });
+      res
+        .status(500)
+        .json({
+          success: false,
+          error: 'Internal server error',
+          errorType: 'UNKNOWN_ERROR',
+          statusCode: 500,
+          timestamp: new Date().toISOString(),
+        });
     }
   });
 
@@ -181,25 +192,29 @@ export function createMockServer() {
 
       // Validar timestamp
       if (!timestamp) {
-        return res.status(400).json({
-          success: false,
-          error: 'Missing required parameter: timestamp',
-          errorType: 'VALIDATION_ERROR',
-          statusCode: 400,
-          timestamp: new Date().toISOString(),
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: 'Missing required parameter: timestamp',
+            errorType: 'VALIDATION_ERROR',
+            statusCode: 400,
+            timestamp: new Date().toISOString(),
+          });
       }
 
       // Tentar parseá-lo
       const sinceDate = new Date(timestamp);
       if (isNaN(sinceDate.getTime())) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid timestamp format. Use ISO 8601 (ex: 2025-10-23T00:00:00Z)',
-          errorType: 'VALIDATION_ERROR',
-          statusCode: 400,
-          timestamp: new Date().toISOString(),
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: 'Invalid timestamp format. Use ISO 8601 (ex: 2025-10-23T00:00:00Z)',
+            errorType: 'VALIDATION_ERROR',
+            statusCode: 400,
+            timestamp: new Date().toISOString(),
+          });
       }
 
       // Filtrar por timestamp
@@ -218,15 +233,19 @@ export function createMockServer() {
       };
 
       console.log(`    ✅ Retornando ${filteredData.length} reservas atualizadas desde ${timestamp}`);
-      res.status(200).json(response);
+      res
+        .status(200)
+        .json(response);
     } catch (error) {
       console.error('    ❌ Erro:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Internal server error',
-        errorType: 'UNKNOWN_ERROR',
-        statusCode: 500,
-        timestamp: new Date().toISOString(),
+      res
+        .status(500)
+        .json({
+          success: false,
+          error: 'Internal server error',
+          errorType: 'UNKNOWN_ERROR',
+          statusCode: 500,
+          timestamp: new Date().toISOString(),
       });
     }
   });
@@ -235,17 +254,19 @@ export function createMockServer() {
   // Health Check
   // =========================================================================
   app.get('/health', (req: Request, res: Response) => {
-    res.status(200).json({
-      status: 'ok',
-      message: 'Mock Stays API Server is running',
-      timestamp: new Date().toISOString(),
-      endpoints: [
-        'GET /v1/reservations?limit=50&offset=0',
-        'GET /v1/accommodations?limit=50&offset=0',
-        'GET /v1/reservations/updated-since?timestamp=ISO&limit=50',
-        'GET /health',
-      ],
-    });
+    res
+      .status(200)
+      .json({
+        status: 'ok',
+        message: 'Mock Stays API Server is running',
+        timestamp: new Date().toISOString(),
+        endpoints: [
+          'GET /v1/reservations?limit=50&offset=0',
+          'GET /v1/accommodations?limit=50&offset=0',
+          'GET /v1/reservations/updated-since?timestamp=ISO&limit=50',
+          'GET /health',
+        ],
+      });
   });
 
   // =========================================================================
@@ -253,10 +274,12 @@ export function createMockServer() {
   // =========================================================================
   app.use((req: Request, res: Response) => {
     console.log(`    ⚠️  Endpoint não encontrado`);
-    res.status(404).json({
-      success: false,
-      error: `Endpoint not found: ${req.method} ${req.path}`,
-      errorType: 'NOT_FOUND',
+    res
+      .status(404)
+      .json({
+        success: false,
+        error: `Endpoint not found: ${req.method} ${req.originalUrl}`,
+        errorType: 'NOT_FOUND',
       statusCode: 404,
       timestamp: new Date().toISOString(),
     });
