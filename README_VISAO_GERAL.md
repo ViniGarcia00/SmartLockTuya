@@ -13,14 +13,14 @@ PASSO 2: Webhook Receiver                               ✅ CONCLUÍDO
 PASSO 3: Event Handler                                  ✅ CONCLUÍDO
 PASSO 4: Webhook Validation + Storage                   ✅ CONCLUÍDO
 PASSO 5: Modelo de Dados (Prisma)                       ✅ CONCLUÍDO
-PASSO 6: Job Scheduler (BullMQ)                         ✅ CONCLUÍDO ← ATUAL
-PASSO 7: Database Routes (CRUD)                         ⏳ PRÓXIMO
-PASSO 8: Tuya Integration                               ⏳ PLANEJADO
-PASSO 9: PIN Generation                                 ⏳ PLANEJADO
+PASSO 6: Job Scheduler (BullMQ)                         ✅ CONCLUÍDO
+PASSO 7: PIN Jobs com Agendamento                       ✅ CONCLUÍDO ← ATUAL
+PASSO 8: Integração Real com Tuya API                   ⏳ PRÓXIMO
+PASSO 9: PIN Generation Frontend                        ⏳ PLANEJADO
 PASSO 10: Frontend Dashboard                            ⏳ PLANEJADO
 ```
 
-**Progresso:** 60% (6 de 10 passos completos)
+**Progresso:** 70% (7 de 10 passos completos)
 
 ---
 
