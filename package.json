@@ -8,6 +8,9 @@
     "start": "node server.js",
     "start:prod": "cross-env NODE_ENV=production node server.js",
     "mock:stays": "node src/lib/stays-mock-server.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write ."
@@ -31,16 +34,20 @@
     "jsonwebtoken": "^9.0.2",
     "node-mailer": "^0.1.1",
     "pg": "^8.16.3",
+    "uuid": "^13.0.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.9.1",
     "cross-env": "^10.1.0",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.29.0",
+    "jest": "^30.2.0",
     "prettier": "^3.2.5",
+    "ts-jest": "^29.4.5",
     "ts-node": "^10.9.2"
   }
 }
