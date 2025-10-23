@@ -16,8 +16,19 @@ const { query } = require('../config/database');
  * Função:
  * 1. Extrai token do header Authorization (formato: "Bearer TOKEN")
  * 2. Valida assinatura do token com JWT_SECRET
- * 3. Busca usuário no banco de dados
- * 4. Popula req.user com dados do usuário
+ * 3. Valida session_id da requisição
+ * 4. Verifica se a sessão ainda está ativa no banco
+ * 5. Verifica se não foi invalidada por novo login em outro lugar
+ * 6. Busca usuário no banco de dados
+ * 7. Popula req.user com dados do usuário
+ * 
+ * Rejeita requisição se:
+ * - Token não foi fornecido
+ * - Token é inválido ou expirou
+ * - Session ID não foi fornecido
+ * - Sessão foi invalidada (login em outro lugar)
+ * - Sessão expirou (12h)
+ * - Usuário não existe ou é inativo
  * 
  * Usado em: Todas as rotas protegidas que requerem autenticação
  * 
@@ -28,11 +39,19 @@ const authenticateToken = async (req, res, next) => {
   try {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    const sessionId = req.headers['x-session-id']; // Session ID do frontend
 
     if (!token) {
       return res.status(401).json({ 
         success: false, 
         error: 'Token não fornecido' 
+      });
+    }
+
+    if (!sessionId) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Session ID não fornecido' 
       });
     }
 
@@ -42,6 +61,40 @@ const authenticateToken = async (req, res, next) => {
         return res.status(403).json({ 
           success: false, 
           error: 'Token inválido ou expirado' 
+        });
+      }
+
+      // ===== VALIDAÇÃO DE SESSÃO =====
+      // Verifica se a sessão está ativa no banco e não foi invalidada
+      const sessionResult = await query(
+        `SELECT * FROM user_sessions 
+         WHERE user_id = $1 AND session_id = $2 AND ativo = true`,
+        [decoded.userId, sessionId]
+      );
+
+      if (sessionResult.rows.length === 0) {
+        return res.status(403).json({ 
+          success: false, 
+          error: 'Sessão inválida. Você foi desconectado de outro dispositivo ou a sessão expirou.',
+          code: 'SESSION_INVALIDATED'
+        });
+      }
+
+      const session = sessionResult.rows[0];
+      const now = new Date();
+      const expiryTime = new Date(session.expires_at);
+
+      // Verifica se a sessão expirou
+      if (now > expiryTime) {
+        await query(
+          'UPDATE user_sessions SET ativo = false WHERE session_id = $1',
+          [sessionId]
+        );
+
+        return res.status(403).json({ 
+          success: false, 
+          error: 'Sessão expirada. Por favor, faça login novamente.',
+          code: 'SESSION_EXPIRED'
         });
       }
 
@@ -59,6 +112,7 @@ const authenticateToken = async (req, res, next) => {
       }
 
       req.user = result.rows[0];
+      req.sessionId = sessionId;
       next();
     });
   } catch (error) {
@@ -66,52 +120,6 @@ const authenticateToken = async (req, res, next) => {
     res.status(500).json({ 
       success: false, 
       error: 'Erro ao verificar autenticação' 
-    });
-  }
-};
-
-/**
- * Middleware: Verifica se usuário possui configuração Tuya ativa
- * 
- * Função:
- * 1. Busca configurações Tuya do usuário autenticado
- * 2. Verifica se estão ativas
- * 3. Popula req.tuyaConfig com os dados
- * 
- * Usado em: Rotas que necessitam acessar API Tuya
- * Deve ser usado APÓS authenticateToken
- * 
- * @middleware requireTuyaConfig
- */
-// Middleware para verificar se usuário tem configuração Tuya
-const requireTuyaConfig = async (req, res, next) => {
-  try {
-    console.log(`🔐 Verificando config Tuya para user_id: ${req.user.id}`);
-    
-    const result = await query(
-      'SELECT * FROM tuya_configs WHERE user_id = $1 AND ativo = true',
-      [req.user.id]
-    );
-
-    console.log(`📋 Configs Tuya encontradas: ${result.rows.length}`);
-
-    if (result.rows.length === 0) {
-      console.log('❌ Nenhuma configuração Tuya encontrada');
-      return res.status(400).json({
-        success: false,
-        error: 'Configure suas credenciais Tuya antes de continuar',
-        redirect: '/settings.html#tuya'
-      });
-    }
-
-    req.tuyaConfig = result.rows[0];
-    console.log(`✅ Config Tuya carregada para region: ${req.tuyaConfig.region_host}`);
-    next();
-  } catch (error) {
-    console.error('Erro ao verificar config Tuya:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Erro ao verificar configuração Tuya' 
     });
   }
 };
@@ -155,6 +163,5 @@ const logActivity = (action, details = {}) => {
 
 module.exports = {
   authenticateToken,
-  requireTuyaConfig,
   logActivity
 };

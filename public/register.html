@@ -50,6 +50,7 @@
         .logo h1 {
             font-size: 32px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 10px;
@@ -326,11 +327,17 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    showAlert('✅ Conta criada com sucesso! Redirecionando...', 'success');
+                    showAlert('✅ Conta criada com sucesso!', 'success');
+                    alertContainer.innerHTML += `
+                        <div class="alert alert-success" style="margin-top: 10px;">
+                            📧 Um email de confirmação foi enviado para <strong>${email}</strong>.<br>
+                            Clique no link no email para ativar sua conta.
+                        </div>
+                    `;
                     
                     setTimeout(() => {
                         window.location.href = 'login.html';
-                    }, 2000);
+                    }, 3000);
                 } else {
                     const errorMsg = data.errors ? data.errors[0].msg : data.error;
                     showAlert(`❌ ${errorMsg}`, 'error');

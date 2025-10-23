@@ -1,5 +1,4 @@
 ATUALIZAÇÕES
--Sistema de login
 
 PROBLEMAS
 - Verificar as variáveis que estão sendo lidas no .env
@@ -18,28 +17,27 @@ CONFIGURAÇÕES
 
 
 MÓDULOS
-- Sistema de Login
-	As paginas só podem ser acessadas se a sessão tiver sido feita na pagina de login
-	Tempo de expiração do login 12 horas
-	Ao detectar login em outro lugar, derrubar os outros por questão de segurança
-	Configurar um email de recuperação de senha
-
-- Diversos logins principais associados a suas respectivas fechaduras
------------------------------------------------------------------
-- Revisar campos de todos os pontos de banco de dados - 
-	Fechadura - Empreendimento/Apartamento
-- Sistema de Log
+- Tuya planos
 - Testar online o sistema
 -----------------------------------------------------------------
+- Deletar senha temporaria
+- API com Stays
+- Criação, atualização e limpeza de reservas
+- Criação das senhas temporárias automaticamente
+- Envio das senhas algumas horas antes por whatsapp e email
+-----------------------------------------------------------------
+- Adicionar usuários a mesma conta
+- Sistema de Log
+- Perfil de usuário
+- Barra superior com: Status Tuya, Login com informações de usuário
+-----------------------------------------------------------------
 - Sistema de notificação
-- Mensagem por whatsapp
 - Dividir por casa
 - Adicionar sensores
-- API com Stays
-- Adicionar usuário a mesma conta
-- Perfil de usuário
 - Converter em javascript o html
 - Senha remoto para limpeza e manutenção
+- Notificação de primeiro acesso
+- Numero de celular para habilitar a conta
 
 EXECUTADO
 - Funcional senha temporária
@@ -51,4 +49,6 @@ EXECUTADO
 - Salvar fechaduras no Banco de dados
 - Renomear Fechadura
 - Sistema de busca
+- Sistema de Login
+- Depois que estiver cadastrado quando clicar editar tem o campo Senha principal
 

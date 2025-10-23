@@ -21,7 +21,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 const session = require('express-session');
 const { query } = require('./config/database');
-const { authenticateToken, requireTuyaConfig, logActivity } = require('./middleware/auth');
+const { authenticateToken, logActivity } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -64,12 +64,13 @@ const tokenCache = new Map();
 /**
  * Gera assinatura para obtenção de token Tuya
  * Cria a string para assinar: clientId + timestamp + GET + hash + URL
- * @param {string} clientId - ID do cliente Tuya
- * @param {string} secret - Secret do cliente Tuya
+ * Usa credenciais do arquivo .env (TUYA_CLIENT_ID e TUYA_CLIENT_SECRET)
  * @param {string} t - Timestamp em milissegundos
  * @returns {string} Assinatura HMAC-SHA256 em hexadecimal maiúsculo
  */
-function generateTokenSign(clientId, secret, t) {
+function generateTokenSign(t) {
+  const clientId = process.env.TUYA_CLIENT_ID;
+  const secret = process.env.TUYA_CLIENT_SECRET;
   const method = 'GET';
   const url = '/v1.0/token?grant_type=1';
   const emptyBodyHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
@@ -80,15 +81,16 @@ function generateTokenSign(clientId, secret, t) {
 /**
  * Gera assinatura para requisições de dados/ações na API Tuya
  * Inclui o token de acesso na assinatura
+ * Usa credenciais do arquivo .env (TUYA_CLIENT_ID e TUYA_CLIENT_SECRET)
  * @param {string} method - Método HTTP (GET, POST, DELETE)
  * @param {string} url - Caminho da API Tuya
  * @param {string} body - Corpo da requisição (JSON stringificado ou vazio)
  * @param {string} accessToken - Token de acesso obtido anteriormente
- * @param {string} clientId - ID do cliente Tuya
- * @param {string} secret - Secret do cliente Tuya
  * @returns {object} { sign: assinatura, t: timestamp }
  */
-function generateSign(method, url, body, accessToken, clientId, secret) {
+function generateSign(method, url, body, accessToken) {
+  const clientId = process.env.TUYA_CLIENT_ID;
+  const secret = process.env.TUYA_CLIENT_SECRET;
   const t = Date.now().toString();
   const contentHash = crypto.createHash('sha256').update(body).digest('hex');
   const stringToSign = `${clientId}${accessToken}${t}${method}\n${contentHash}\n\n${url}`;
@@ -100,12 +102,12 @@ function generateSign(method, url, body, accessToken, clientId, secret) {
  * Obtém ou atualiza o token de acesso Tuya com cache
  * Verifica se o token está cacheado e ainda válido (com margem de 1 minuto)
  * Se expirado ou não cacheado, faz nova requisição à API Tuya
+ * Usa credenciais e region_host do arquivo .env
  * 
  * @param {number} userId - ID do usuário (para chave de cache única)
- * @param {object} tuyaConfig - Configuração Tuya do usuário
  * @returns {Promise<string>} Token de acesso válido
  */
-async function ensureToken(userId, tuyaConfig) {
+async function ensureToken(userId) {
   const cacheKey = `user_${userId}`;
   const cached = tokenCache.get(cacheKey);
   
@@ -115,13 +117,15 @@ async function ensureToken(userId, tuyaConfig) {
   }
 
   const t = Date.now().toString();
-  const sign = generateTokenSign(tuyaConfig.client_id, tuyaConfig.client_secret, t);
+  const sign = generateTokenSign(t);
+  const regionHost = process.env.TUYA_REGION_HOST;
+  const clientId = process.env.TUYA_CLIENT_ID;
 
   try {
     // Requisição para obter novo token na API Tuya
-    const res = await axios.get(`https://${tuyaConfig.region_host}/v1.0/token?grant_type=1`, {
+    const res = await axios.get(`https://${regionHost}/v1.0/token?grant_type=1`, {
       headers: {
-        client_id: tuyaConfig.client_id,
+        client_id: clientId,
         sign,
         sign_method: 'HMAC-SHA256',
         t,
@@ -154,7 +158,7 @@ async function ensureToken(userId, tuyaConfig) {
 app.get('/api/locks', authenticateToken, async (req, res) => {
   try {
     const result = await query(
-      'SELECT id, device_id, nome, localizacao, accommodation_id, ativo FROM locks WHERE user_id = $1 AND ativo = true',
+      'SELECT id, device_id, nome, localizacao, accommodation_id, senha_principal, ativo FROM locks WHERE user_id = $1 AND ativo = true',
       [req.user.id]
     );
 
@@ -164,7 +168,8 @@ app.get('/api/locks', authenticateToken, async (req, res) => {
         id: lock.device_id,
         name: lock.nome,
         location: lock.localizacao,
-        accommodation_id: lock.accommodation_id
+        accommodation_id: lock.accommodation_id,
+        master_password: lock.senha_principal
       }))
     });
   } catch (err) {
@@ -180,13 +185,13 @@ app.get('/api/locks', authenticateToken, async (req, res) => {
  */
 app.post('/api/locks', authenticateToken, async (req, res) => {
   try {
-    const { device_id, nome, localizacao, accommodation_id } = req.body;
+    const { device_id, nome, localizacao, accommodation_id, senha_principal } = req.body;
 
     const result = await query(
-      `INSERT INTO locks (user_id, device_id, nome, localizacao, accommodation_id) 
-       VALUES ($1, $2, $3, $4, $5) 
-       RETURNING id, device_id, nome, localizacao, accommodation_id`,
-      [req.user.id, device_id, nome, localizacao, accommodation_id]
+      `INSERT INTO locks (user_id, device_id, nome, localizacao, accommodation_id, senha_principal) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
+       RETURNING id, device_id, nome, localizacao, accommodation_id, senha_principal`,
+      [req.user.id, device_id, nome, localizacao, accommodation_id, senha_principal]
     );
 
     res.json({ success: true, result: result.rows[0] });
@@ -200,14 +205,14 @@ app.post('/api/locks', authenticateToken, async (req, res) => {
 app.put('/api/locks/:deviceId', authenticateToken, async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const { nome, localizacao, accommodation_id } = req.body;
+    const { nome, localizacao, accommodation_id, senha_principal } = req.body;
 
     const result = await query(
       `UPDATE locks 
-       SET nome = $1, localizacao = $2, accommodation_id = $3, updated_at = NOW()
-       WHERE user_id = $4 AND device_id = $5
-       RETURNING id, device_id, nome, localizacao, accommodation_id`,
-      [nome, localizacao, accommodation_id, req.user.id, deviceId]
+       SET nome = $1, localizacao = $2, accommodation_id = $3, senha_principal = $4, updated_at = NOW()
+       WHERE user_id = $5 AND device_id = $6
+       RETURNING id, device_id, nome, localizacao, accommodation_id, senha_principal`,
+      [nome, localizacao, accommodation_id, senha_principal, req.user.id, deviceId]
     );
 
     if (result.rows.length === 0) {
@@ -245,17 +250,19 @@ app.delete('/api/locks/:deviceId', authenticateToken, async (req, res) => {
 });
 
 // Status do dispositivo
-app.get('/api/device/:deviceId/status', authenticateToken, requireTuyaConfig, async (req, res) => {
+app.get('/api/device/:deviceId/status', authenticateToken, async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const accessToken = await ensureToken(req.user.id, req.tuyaConfig);
+    const accessToken = await ensureToken(req.user.id);
+    const regionHost = process.env.TUYA_REGION_HOST;
+    const clientId = process.env.TUYA_CLIENT_ID;
     
     const url = `/v1.0/devices/${deviceId}/status`;
-    const { sign, t } = generateSign('GET', url, '', accessToken, req.tuyaConfig.client_id, req.tuyaConfig.client_secret);
+    const { sign, t } = generateSign('GET', url, '', accessToken);
 
-    const response = await axios.get(`https://${req.tuyaConfig.region_host}${url}`, {
+    const response = await axios.get(`https://${regionHost}${url}`, {
       headers: {
-        client_id: req.tuyaConfig.client_id,
+        client_id: clientId,
         access_token: accessToken,
         sign,
         sign_method: 'HMAC-SHA256',
@@ -271,17 +278,19 @@ app.get('/api/device/:deviceId/status', authenticateToken, requireTuyaConfig, as
 });
 
 // Info do dispositivo
-app.get('/api/device/:deviceId/info', authenticateToken, requireTuyaConfig, async (req, res) => {
+app.get('/api/device/:deviceId/info', authenticateToken, async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const accessToken = await ensureToken(req.user.id, req.tuyaConfig);
+    const accessToken = await ensureToken(req.user.id);
+    const regionHost = process.env.TUYA_REGION_HOST;
+    const clientId = process.env.TUYA_CLIENT_ID;
     
     const url = `/v1.0/devices/${deviceId}`;
-    const { sign, t } = generateSign('GET', url, '', accessToken, req.tuyaConfig.client_id, req.tuyaConfig.client_secret);
+    const { sign, t } = generateSign('GET', url, '', accessToken);
 
-    const response = await axios.get(`https://${req.tuyaConfig.region_host}${url}`, {
+    const response = await axios.get(`https://${regionHost}${url}`, {
       headers: {
-        client_id: req.tuyaConfig.client_id,
+        client_id: clientId,
         access_token: accessToken,
         sign,
         sign_method: 'HMAC-SHA256',
@@ -297,17 +306,19 @@ app.get('/api/device/:deviceId/info', authenticateToken, requireTuyaConfig, asyn
 });
 
 // Listar senhas temporárias (SEM LOGS NO TERMINAL)
-app.get('/api/device/:deviceId/temp-passwords', authenticateToken, requireTuyaConfig, async (req, res) => {
+app.get('/api/device/:deviceId/temp-passwords', authenticateToken, async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const accessToken = await ensureToken(req.user.id, req.tuyaConfig);
+    const accessToken = await ensureToken(req.user.id);
+    const regionHost = process.env.TUYA_REGION_HOST;
+    const clientId = process.env.TUYA_CLIENT_ID;
     
     const url = `/v1.0/devices/${deviceId}/door-lock/temp-passwords`;
-    const { sign, t } = generateSign('GET', url, '', accessToken, req.tuyaConfig.client_id, req.tuyaConfig.client_secret);
+    const { sign, t } = generateSign('GET', url, '', accessToken);
 
-    const response = await axios.get(`https://${req.tuyaConfig.region_host}${url}`, {
+    const response = await axios.get(`https://${regionHost}${url}`, {
       headers: {
-        client_id: req.tuyaConfig.client_id,
+        client_id: clientId,
         access_token: accessToken,
         sign,
         sign_method: 'HMAC-SHA256',
@@ -323,12 +334,15 @@ app.get('/api/device/:deviceId/temp-passwords', authenticateToken, requireTuyaCo
 });
 
 // Deletar senha
-app.delete('/api/device/:deviceId/temp-password/:passwordId', authenticateToken, requireTuyaConfig, async (req, res) => {
+app.delete('/api/device/:deviceId/temp-password/:passwordId', authenticateToken, async (req, res) => {
   try {
     const { deviceId, passwordId } = req.params;
+    const regionHost = process.env.TUYA_REGION_HOST;
+    const clientId = process.env.TUYA_CLIENT_ID;
+    
     console.log(`🗑️ DELETE - Deletando senha: deviceId=${deviceId}, passwordId=${passwordId}`);
     console.log(`👤 User ID: ${req.user.id}`);
-    console.log(`🌐 Region Host: ${req.tuyaConfig.region_host}`);
+    console.log(`🌐 Region Host: ${regionHost}`);
     
     // Validação de parâmetros
     if (!deviceId || !passwordId) {
@@ -339,23 +353,23 @@ app.delete('/api/device/:deviceId/temp-password/:passwordId', authenticateToken,
       });
     }
     
-    const accessToken = await ensureToken(req.user.id, req.tuyaConfig);
+    const accessToken = await ensureToken(req.user.id);
     console.log(`🔐 Token obtido com sucesso`);
     
     const url = `/v1.0/devices/${deviceId}/door-lock/temp-passwords/${passwordId}`;
     const emptyBody = '';
-    const { sign, t } = generateSign('DELETE', url, emptyBody, accessToken, req.tuyaConfig.client_id, req.tuyaConfig.client_secret);
+    const { sign, t } = generateSign('DELETE', url, emptyBody, accessToken);
 
-    const fullUrl = `https://${req.tuyaConfig.region_host}${url}`;
+    const fullUrl = `https://${regionHost}${url}`;
     console.log(`📤 DELETE URL: ${fullUrl}`);
-    console.log(`🔑 Headers preparados: client_id=${req.tuyaConfig.client_id}`);
+    console.log(`🔑 Headers preparados: client_id=${clientId}`);
     console.log(`📊 Timestamp: ${t}`);
     console.log(`🔐 Sign method: HMAC-SHA256`);
 
     console.log(`⏳ Enviando requisição DELETE para Tuya...`);
     const response = await axios.delete(fullUrl, {
       headers: {
-        client_id: req.tuyaConfig.client_id,
+        client_id: clientId,
         access_token: accessToken,
         sign,
         sign_method: 'HMAC-SHA256',
@@ -462,10 +476,13 @@ function encryptPassword(plaintext, originalKey) {
  * }
  */
 // Criar senha temporária
-app.post('/api/device/:deviceId/temp-password', authenticateToken, requireTuyaConfig, async (req, res) => {
+app.post('/api/device/:deviceId/temp-password', authenticateToken, async (req, res) => {
   try {
     const { deviceId } = req.params;
     const { name, password, startDate, startTime, endDate, endTime } = req.body;
+    const regionHost = process.env.TUYA_REGION_HOST;
+    const clientId = process.env.TUYA_CLIENT_ID;
+    const clientSecret = process.env.TUYA_CLIENT_SECRET;
     
     if (!password || password.length !== 7) {
       return res.status(400).json({
@@ -476,16 +493,16 @@ app.post('/api/device/:deviceId/temp-password', authenticateToken, requireTuyaCo
     
     const startTimestamp = Math.floor(new Date(`${startDate}T${startTime}`).getTime() / 1000);
     const endTimestamp = Math.floor(new Date(`${endDate}T${endTime}`).getTime() / 1000);
-    const accessToken = await ensureToken(req.user.id, req.tuyaConfig);
+    const accessToken = await ensureToken(req.user.id);
     
     // Passo 1: Obter ticket
     const ticketUrl = `/v1.0/devices/${deviceId}/door-lock/password-ticket`;
     const ticketBody = '{}';
-    const { sign: ticketSign, t: ticketT } = generateSign('POST', ticketUrl, ticketBody, accessToken, req.tuyaConfig.client_id, req.tuyaConfig.client_secret);
+    const { sign: ticketSign, t: ticketT } = generateSign('POST', ticketUrl, ticketBody, accessToken);
     
-    const ticketResponse = await axios.post(`https://${req.tuyaConfig.region_host}${ticketUrl}`, {}, {
+    const ticketResponse = await axios.post(`https://${regionHost}${ticketUrl}`, {}, {
       headers: {
-        client_id: req.tuyaConfig.client_id,
+        client_id: clientId,
         access_token: accessToken,
         sign: ticketSign,
         sign_method: 'HMAC-SHA256',
@@ -502,7 +519,7 @@ app.post('/api/device/:deviceId/temp-password', authenticateToken, requireTuyaCo
     const { ticket_id, ticket_key } = ticketResponse.data.result;
     
     // Passo 2: Descriptografar e criptografar senha
-    const originalKey = decryptTicketKey(ticket_key, req.tuyaConfig.client_secret);
+    const originalKey = decryptTicketKey(ticket_key, clientSecret);
     const encryptedPasswordHex = encryptPassword(password, originalKey);
     
     // Passo 3: Enviar senha
@@ -519,13 +536,13 @@ app.post('/api/device/:deviceId/temp-password', authenticateToken, requireTuyaCo
     };
     
     const body = JSON.stringify(passwordData);
-    const { sign, t } = generateSign('POST', url, body, accessToken, req.tuyaConfig.client_id, req.tuyaConfig.client_secret);
+    const { sign, t } = generateSign('POST', url, body, accessToken);
 
-    const response = await axios.post(`https://${req.tuyaConfig.region_host}${url}`, 
+    const response = await axios.post(`https://${regionHost}${url}`, 
       passwordData,
       {
         headers: {
-          client_id: req.tuyaConfig.client_id,
+          client_id: clientId,
           access_token: accessToken,
           sign,
           sign_method: 'HMAC-SHA256',
@@ -575,99 +592,54 @@ app.post('/api/device/:deviceId/temp-password', authenticateToken, requireTuyaCo
 
 // ========== ROTAS DE CONFIGURAÇÃO ==========
 
-// Obter config Tuya do usuário
+// Obter config Tuya (retorna valores do .env)
 app.get('/api/config/tuya', authenticateToken, async (req, res) => {
   try {
-    const result = await query(
-      'SELECT id, client_id, client_secret, region_host, ativo FROM tuya_configs WHERE user_id = $1',
-      [req.user.id]
-    );
-
-    if (result.rows.length > 0) {
-      const config = result.rows[0];
-      res.json({ 
-        success: true, 
-        result: {
-          id: config.id,
-          client_id: config.client_id,
-          client_secret: config.client_secret, // Retorna o secret
-          region_host: config.region_host,
-          ativo: config.ativo
-        }
-      });
-    } else {
-      res.json({ 
-        success: true, 
-        result: null 
-      });
-    }
+    // Retorna apenas os valores do .env (sem expor o secret completo)
+    res.json({ 
+      success: true, 
+      result: {
+        client_id: process.env.TUYA_CLIENT_ID || '',
+        region_host: process.env.TUYA_REGION_HOST || 'openapi.tuyaeu.com',
+        configured: !!(process.env.TUYA_CLIENT_ID && process.env.TUYA_CLIENT_SECRET && process.env.TUYA_REGION_HOST)
+      }
+    });
   } catch (err) {
     console.error('Erro ao buscar config:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Salvar/atualizar config Tuya
+// POST /api/config/tuya - Não faz mais nada (credenciais vêm do .env)
 app.post('/api/config/tuya', authenticateToken, async (req, res) => {
   try {
-    const { client_id, client_secret, region_host } = req.body;
-
-    if (!client_id || !client_secret) {
-      return res.status(400).json({
-        success: false,
-        error: 'Client ID e Secret são obrigatórios'
-      });
-    }
-
-    const existing = await query(
-      'SELECT id FROM tuya_configs WHERE user_id = $1',
-      [req.user.id]
-    );
-
-    let result;
-    if (existing.rows.length > 0) {
-      result = await query(
-        `UPDATE tuya_configs 
-         SET client_id = $1, client_secret = $2, region_host = $3, updated_at = NOW()
-         WHERE user_id = $4
-         RETURNING id`,
-        [client_id, client_secret, region_host || 'openapi.tuyaeu.com', req.user.id]
-      );
-    } else {
-      result = await query(
-        `INSERT INTO tuya_configs (user_id, client_id, client_secret, region_host) 
-         VALUES ($1, $2, $3, $4) 
-         RETURNING id`,
-        [req.user.id, client_id, client_secret, region_host || 'openapi.tuyaeu.com']
-      );
-    }
-
-    // Limpa cache de token
-    tokenCache.delete(`user_${req.user.id}`);
-
-    res.json({ success: true, message: 'Configuração salva com sucesso' });
+    console.log('⚠️ Tentativa de salvar configuração Tuya - usando .env em vez de banco de dados');
+    res.json({ 
+      success: true, 
+      message: 'As credenciais Tuya são configuradas via variáveis de ambiente (.env)',
+      info: 'TUYA_CLIENT_ID, TUYA_CLIENT_SECRET e TUYA_REGION_HOST devem estar definidas no arquivo .env'
+    });
   } catch (err) {
-    console.error('Erro ao salvar config:', err.message);
+    console.error('Erro ao processar config:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Deletar configurações Tuya
+// DELETE /api/config/tuya - Não faz mais nada (credenciais vêm do .env)
 app.delete('/api/config/tuya', authenticateToken, async (req, res) => {
   try {
-    // Deleta a configuração Tuya do usuário
-    await query(
-      'DELETE FROM tuya_configs WHERE user_id = $1',
-      [req.user.id]
-    );
-
+    console.log('⚠️ Tentativa de deletar configuração Tuya - usando .env em vez de banco de dados');
+    
     // Limpa cache de token
     tokenCache.delete(`user_${req.user.id}`);
 
-    console.log(`✅ Configurações Tuya deletadas para usuário ${req.user.id}`);
-    res.json({ success: true, message: 'Configurações Tuya removidas com sucesso' });
+    res.json({ 
+      success: true, 
+      message: 'As credenciais Tuya são configuradas via .env e não podem ser deletadas pela interface',
+      info: 'Para remover credenciais, edite o arquivo .env e remova as variáveis: TUYA_CLIENT_ID, TUYA_CLIENT_SECRET, TUYA_REGION_HOST'
+    });
   } catch (err) {
-    console.error('Erro ao deletar config:', err.message);
+    console.error('Erro ao processar delete:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -723,27 +695,30 @@ app.get('/api/user/activity-logs', authenticateToken, async (req, res) => {
 // Testar conexão Tuya (faz requisição real à API Tuya)
 app.post('/api/config/tuya/test', authenticateToken, async (req, res) => {
   try {
-    // Busca config do usuário
-    const configResult = await query(
-      'SELECT * FROM tuya_configs WHERE user_id = $1 AND ativo = true',
-      [req.user.id]
-    );
+    // Valida se as credenciais estão configuradas no .env
+    const clientId = process.env.TUYA_CLIENT_ID;
+    const clientSecret = process.env.TUYA_CLIENT_SECRET;
+    const regionHost = process.env.TUYA_REGION_HOST;
 
-    if (configResult.rows.length === 0) {
+    if (!clientId || !clientSecret || !regionHost) {
       return res.status(400).json({
         success: false,
-        error: 'Configure suas credenciais Tuya primeiro'
+        error: 'Credenciais Tuya não estão configuradas no arquivo .env',
+        missing: [
+          !clientId && 'TUYA_CLIENT_ID',
+          !clientSecret && 'TUYA_CLIENT_SECRET',
+          !regionHost && 'TUYA_REGION_HOST'
+        ].filter(Boolean)
       });
     }
 
-    const tuyaConfig = configResult.rows[0];
     const t = Date.now().toString();
-    const sign = generateTokenSign(tuyaConfig.client_id, tuyaConfig.client_secret, t);
+    const sign = generateTokenSign(t);
 
     // Tenta obter token da API Tuya
-    const response = await axios.get(`https://${tuyaConfig.region_host}/v1.0/token?grant_type=1`, {
+    const response = await axios.get(`https://${regionHost}/v1.0/token?grant_type=1`, {
       headers: {
-        client_id: tuyaConfig.client_id,
+        client_id: clientId,
         sign,
         sign_method: 'HMAC-SHA256',
         t,
@@ -757,7 +732,7 @@ app.post('/api/config/tuya/test', authenticateToken, async (req, res) => {
         message: 'Conexão com Tuya estabelecida com sucesso',
         result: {
           connected: true,
-          region: tuyaConfig.region_host
+          region: regionHost
         }
       });
     } else {
@@ -772,14 +747,14 @@ app.post('/api/config/tuya/test', authenticateToken, async (req, res) => {
     if (err.code === 'ENOTFOUND' || err.code === 'ETIMEDOUT') {
       return res.status(500).json({ 
         success: false, 
-        error: 'Erro ao conectar. Verifique o Region Host'
+        error: 'Erro ao conectar. Verifique o TUYA_REGION_HOST no .env'
       });
     }
     
     if (err.response?.status === 401 || err.response?.status === 403) {
       return res.status(401).json({ 
         success: false, 
-        error: 'Credenciais Tuya inválidas'
+        error: 'Credenciais Tuya inválidas (verifique TUYA_CLIENT_ID e TUYA_CLIENT_SECRET no .env)'
       });
     }
     

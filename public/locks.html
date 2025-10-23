@@ -639,6 +639,11 @@
                     <input type="text" id="lock-location" placeholder="Ex: Entrada Principal">
                 </div>
 
+                <div class="form-group">
+                    <label>Senha Principal</label>
+                    <input type="text" id="lock-master-password" placeholder="Ex: 1234567">
+                </div>
+
                 <div class="form-group" id="accommodation-group" style="display: none;">
                     <label>ID Acomodação</label>
                     <input type="text" id="lock-accommodation" placeholder="Ex: 101">
@@ -662,24 +667,106 @@
         const API_URL = 'http://localhost:3000/api';
         let currentUser = null;
         let locks = [];
+        let sessionValidationInterval = null;
 
         function checkAuth() {
             const token = localStorage.getItem('token');
+            const sessionId = localStorage.getItem('session_id');
             const user = localStorage.getItem('user');
+            const sessionExpires = localStorage.getItem('session_expires');
             
-            if (!token || !user) {
+            if (!token || !sessionId || !user || !sessionExpires) {
+                console.warn('❌ Dados de autenticação incompletos');
+                localStorage.removeItem('token');
+                localStorage.removeItem('session_id');
+                localStorage.removeItem('user');
+                localStorage.removeItem('session_expires');
+                localStorage.removeItem('currentLockId');
                 window.location.href = 'login.html';
+                return false;
+            }
+
+            // Verifica se sessão expirou
+            const expiryTime = new Date(sessionExpires);
+            if (new Date() > expiryTime) {
+                console.warn('❌ Sessão expirada');
+                localStorage.removeItem('token');
+                localStorage.removeItem('session_id');
+                localStorage.removeItem('user');
+                localStorage.removeItem('session_expires');
+                localStorage.removeItem('currentLockId');
+                showAlert('Sua sessão expirou. Por favor, faça login novamente.', 'error');
+                setTimeout(() => {
+                    window.location.href = 'login.html';
+                }, 2000);
                 return false;
             }
             
             currentUser = JSON.parse(user);
+            
+            // Inicia validação periódica de sessão
+            startSessionValidation();
+            
             return true;
+        }
+
+        function startSessionValidation() {
+            if (sessionValidationInterval) return;
+            
+            sessionValidationInterval = setInterval(validateSessionWithServer, 5 * 60 * 1000);
+            
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    validateSessionWithServer();
+                }
+            });
+        }
+
+        async function validateSessionWithServer() {
+            try {
+                const token = localStorage.getItem('token');
+                const sessionId = localStorage.getItem('session_id');
+                
+                if (!token || !sessionId) return;
+                
+                const response = await fetch(`${API_URL}/auth/validate-session`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'X-Session-Id': sessionId
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!data.valid) {
+                    console.warn('❌ Sessão inválida:', data.message);
+                    
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('session_id');
+                    localStorage.removeItem('user');
+                    localStorage.removeItem('session_expires');
+                    localStorage.removeItem('currentLockId');
+                    
+                    if (sessionValidationInterval) {
+                        clearInterval(sessionValidationInterval);
+                        sessionValidationInterval = null;
+                    }
+                    
+                    showAlert(data.message || 'Sessão invalidada. Você foi desconectado.', 'error');
+                    setTimeout(() => {
+                        window.location.href = 'login.html';
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('Erro ao validar sessão:', error);
+            }
         }
 
         function getHeaders() {
             return {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'X-Session-Id': localStorage.getItem('session_id') || ''
             };
         }
 
@@ -703,8 +790,32 @@
 
             document.getElementById('logout-link').addEventListener('click', (e) => {
                 e.preventDefault();
+                const token = localStorage.getItem('token');
+                const sessionId = localStorage.getItem('session_id');
+                
                 if (confirm('Deseja realmente sair?')) {
-                    localStorage.clear();
+                    if (token && sessionId) {
+                        fetch(`${API_URL}/auth/logout`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`,
+                                'X-Session-Id': sessionId
+                            }
+                        }).catch(err => console.error('Erro ao fazer logout:', err));
+                    }
+                    
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('session_id');
+                    localStorage.removeItem('user');
+                    localStorage.removeItem('session_expires');
+                    localStorage.removeItem('currentLockId');
+                    
+                    if (sessionValidationInterval) {
+                        clearInterval(sessionValidationInterval);
+                        sessionValidationInterval = null;
+                    }
+                    
                     window.location.href = 'login.html';
                 }
             });
@@ -827,6 +938,7 @@
             document.getElementById('lock-device-id').value = '';
             document.getElementById('lock-name').value = '';
             document.getElementById('lock-location').value = '';
+            document.getElementById('lock-master-password').value = '';
             document.getElementById('lock-accommodation').value = '';
             document.getElementById('lock-device-id').disabled = false;
             document.getElementById('accommodation-group').style.display = 'none';
@@ -885,6 +997,7 @@
             const deviceId = document.getElementById('lock-device-id').value.trim();
             const name = document.getElementById('lock-name').value.trim();
             const location = document.getElementById('lock-location').value.trim();
+            const masterPassword = document.getElementById('lock-master-password').value.trim();
             const accommodationId = document.getElementById('lock-accommodation').value.trim();
 
             try {
@@ -898,6 +1011,7 @@
                         device_id: deviceId,
                         nome: name,
                         localizacao: location,
+                        senha_principal: masterPassword || null,
                         accommodation_id: accommodationId || null
                     })
                 });
@@ -926,6 +1040,7 @@
             document.getElementById('lock-device-id').value = deviceId;
             document.getElementById('lock-name').value = lock.name;
             document.getElementById('lock-location').value = lock.location || '';
+            document.getElementById('lock-master-password').value = lock.master_password || '';
             document.getElementById('lock-accommodation').value = lock.accommodation_id || '';
             document.getElementById('lock-device-id').disabled = true;
             document.getElementById('accommodation-group').style.display = 'block';

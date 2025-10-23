@@ -50,6 +50,7 @@
         .logo h1 {
             font-size: 32px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 10px;
@@ -85,6 +86,40 @@
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .password-field {
+            position: relative;
+        }
+
+        .password-field input {
+            padding-right: 45px;
+        }
+
+        .password-toggle-btn {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            color: #667eea;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            margin-top: 6px;
+        }
+
+        .password-toggle-btn:hover {
+            color: #764ba2;
+        }
+
+        .password-toggle-btn:active {
+            transform: translateY(-50%) scale(0.95);
         }
 
         .btn {
@@ -187,9 +222,10 @@
                 <input type="email" id="email" required autocomplete="email">
             </div>
 
-            <div class="form-group">
+            <div class="form-group password-field">
                 <label for="senha">Senha</label>
                 <input type="password" id="senha" required autocomplete="current-password">
+                <button type="button" class="password-toggle-btn" id="toggle-senha">🔒</button>
             </div>
 
             <button type="submit" class="btn btn-primary" id="login-btn">
@@ -208,6 +244,21 @@
         const form = document.getElementById('login-form');
         const loginBtn = document.getElementById('login-btn');
         const alertContainer = document.getElementById('alert-container');
+        const senhaInput = document.getElementById('senha');
+        const toggleBtn = document.getElementById('toggle-senha');
+
+        // Toggle visibilidade da senha
+        toggleBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            if (senhaInput.type === 'password') {
+                senhaInput.type = 'text';
+                toggleBtn.textContent = '🔓';
+            } else {
+                senhaInput.type = 'password';
+                toggleBtn.textContent = '🔒';
+            }
+        });
 
         function showAlert(message, type) {
             alertContainer.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
@@ -235,13 +286,24 @@
                 const data = await response.json();
 
                 if (data.success) {
+                    // Armazena token, usuário e session_id
                     localStorage.setItem('token', data.token);
                     localStorage.setItem('user', JSON.stringify(data.user));
+                    localStorage.setItem('session_id', data.session_id);
+                    localStorage.setItem('session_expires', new Date(Date.now() + data.expiresIn * 1000).toISOString());
+                    
                     showAlert('✅ Login realizado com sucesso!', 'success');
                     
                     setTimeout(() => {
                         window.location.href = 'dashboard.html';
                     }, 1000);
+                } else if (data.requiresEmailVerification) {
+                    showAlert(
+                        `⚠️ ${data.error}\n\nUm email de confirmação foi enviado para ${data.email}.\nVerifique sua caixa de entrada (ou spam).`,
+                        'error'
+                    );
+                    loginBtn.disabled = false;
+                    loginBtn.innerHTML = 'Entrar';
                 } else {
                     showAlert(`❌ ${data.error}`, 'error');
                     loginBtn.disabled = false;

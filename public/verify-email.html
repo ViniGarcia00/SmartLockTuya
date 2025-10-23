@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmar Email - SmartLock Tuya</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 50px;
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            font-size: 36px;
+            margin-bottom: 5px;
+        }
+
+        .icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px 0;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-box {
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .status-success {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            color: #155724;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            color: #721c24;
+        }
+
+        .status-info {
+            background: #d1ecf1;
+            border: 2px solid #17a2b8;
+            color: #0c5460;
+        }
+
+        .message {
+            font-size: 16px;
+            line-height: 1.6;
+            margin: 15px 0;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            margin-top: 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .divider {
+            margin: 20px 0;
+            color: #ccc;
+        }
+
+        .info-text {
+            color: #666;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            color: #856404;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <span class="icon" id="icon">🔐</span>
+            <h1>Confirmar Email</h1>
+        </div>
+
+        <div id="status-container"></div>
+
+        <div id="loading-state" style="display: none;">
+            <p class="message">Processando confirmação...</p>
+            <div class="spinner"></div>
+        </div>
+
+        <div id="success-state" style="display: none;">
+            <div class="status-box status-success">
+                <p class="message">✅ Email confirmado com sucesso!</p>
+                <p class="info-text">Sua conta foi ativada e você já pode usar o sistema.</p>
+            </div>
+            <button class="btn btn-primary" onclick="window.location.href='login.html'">
+                Ir para Login
+            </button>
+        </div>
+
+        <div id="error-state" style="display: none;">
+            <div class="status-box status-error">
+                <p class="message" id="error-message">❌ Ocorreu um erro ao confirmar seu email.</p>
+            </div>
+            <p class="info-text">O link pode ter expirado. Solicite um novo link de confirmação.</p>
+            <button class="btn btn-secondary" onclick="window.location.href='register.html'">
+                Fazer novo cadastro
+            </button>
+            <button class="btn btn-primary" onclick="window.location.href='login.html'">
+                Voltar ao Login
+            </button>
+        </div>
+
+        <div id="invalid-state" style="display: none;">
+            <div class="status-box status-info">
+                <p class="message">⚠️ Nenhum token de confirmação fornecido</p>
+            </div>
+            <p class="info-text">Abra o link de confirmação enviado para seu email.</p>
+            <button class="btn btn-primary" onclick="window.location.href='login.html'">
+                Voltar ao Login
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token');
+
+        const loadingState = document.getElementById('loading-state');
+        const successState = document.getElementById('success-state');
+        const errorState = document.getElementById('error-state');
+        const invalidState = document.getElementById('invalid-state');
+        const errorMessage = document.getElementById('error-message');
+        const icon = document.getElementById('icon');
+
+        // Se não houver token
+        if (!token) {
+            invalidState.style.display = 'block';
+        } else {
+            // Mostrar loading
+            loadingState.style.display = 'block';
+            icon.textContent = '⏳';
+
+            // Enviar requisição para verificar email
+            fetch('/api/auth/verify-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ token })
+            })
+            .then(response => response.json())
+            .then(data => {
+                loadingState.style.display = 'none';
+                
+                if (data.success) {
+                    icon.textContent = '✅';
+                    successState.style.display = 'block';
+                } else {
+                    icon.textContent = '❌';
+                    errorMessage.textContent = `❌ ${data.error || 'Erro ao confirmar email'}`;
+                    errorState.style.display = 'block';
+                }
+            })
+            .catch(err => {
+                console.error('Erro:', err);
+                loadingState.style.display = 'none';
+                icon.textContent = '❌';
+                errorMessage.textContent = '❌ Erro ao conectar com o servidor';
+                errorState.style.display = 'block';
+            });
+        }
+    </script>
+</body>
+</html>

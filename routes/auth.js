@@ -17,13 +17,30 @@ const nodemailer = require('nodemailer');
 
 // ===== CONFIGURAÇÃO DE EMAIL =====
 // Transporte Nodemailer para envio de emails de verificação e reset de senha
-const transporter = nodemailer.createTransport({
-  service: process.env.EMAIL_SERVICE || 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD
-  }
-});
+// Suporta Gmail, Hostinger e outros SMTP
+let transporter;
+
+if (process.env.EMAIL_SERVICE === 'smtp') {
+  // Configuração customizada para Hostinger
+  transporter = nodemailer.createTransport({
+    host: process.env.EMAIL_HOST || 'smtp.hostinger.com',
+    port: parseInt(process.env.EMAIL_PORT || '465'),
+    secure: process.env.EMAIL_SECURE === 'true' || true, // true para 465, false para outras portas
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD
+    }
+  });
+} else {
+  // Configuração de serviço (Gmail, Yahoo, etc)
+  transporter = nodemailer.createTransport({
+    service: process.env.EMAIL_SERVICE || 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD
+    }
+  });
+}
 
 /**
  * POST /api/auth/register
@@ -64,16 +81,31 @@ router.post('/register', [
     const { nome, empresa, email, whatsapp, senha } = req.body;
 
     // Verifica se email já existe
-    const existingUser = await query(
+    const existingEmail = await query(
       'SELECT id FROM users WHERE email = $1',
       [email]
     );
 
-    if (existingUser.rows.length > 0) {
+    if (existingEmail.rows.length > 0) {
       return res.status(400).json({
         success: false,
-        error: 'Email já cadastrado'
+        error: 'Este email já está cadastrado em nossa plataforma'
       });
+    }
+
+    // Verifica se whatsapp já existe (se fornecido e não vazio)
+    if (whatsapp && whatsapp.trim()) {
+      const existingWhatsapp = await query(
+        'SELECT id FROM users WHERE whatsapp = $1',
+        [whatsapp]
+      );
+
+      if (existingWhatsapp.rows.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Este número de WhatsApp já está associado a outra conta'
+        });
+      }
     }
 
     // Hash da senha com bcrypt - padrão: 10 rounds
@@ -95,19 +127,58 @@ router.post('/register', [
     // Envia email de verificação (opcional - requer configuração)
     if (process.env.EMAIL_USER) {
       try {
+        const verifyLink = `${process.env.APP_URL}/verify-email.html?token=${tokenVerificacao}`;
+        
         await transporter.sendMail({
           from: process.env.EMAIL_USER,
           to: email,
-          subject: 'Verificação de Email - Tuya Locks',
+          subject: '✅ Confirme seu Email - SmartLock Tuya',
           html: `
-            <h2>Bem-vindo ao Sistema Tuya Locks!</h2>
-            <p>Olá ${nome},</p>
-            <p>Para verificar seu email, clique no link abaixo:</p>
-            <a href="${process.env.APP_URL}/api/auth/verify-email/${tokenVerificacao}">Verificar Email</a>
+            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+                <h1 style="color: white; margin: 0;">🔐 SmartLock Tuya</h1>
+              </div>
+              
+              <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <h2 style="color: #333; margin-top: 0;">Bem-vindo, ${nome}!</h2>
+                
+                <p style="color: #666; line-height: 1.6;">
+                  Sua conta foi criada com sucesso no sistema SmartLock Tuya. 
+                  Para ativar sua conta e começar a usar o sistema, confirme seu email clicando no botão abaixo:
+                </p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${verifyLink}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; border-radius: 5px; text-decoration: none; font-weight: bold; display: inline-block;">
+                    ✅ Confirmar Email
+                  </a>
+                </div>
+                
+                <p style="color: #999; font-size: 12px; text-align: center;">
+                  Ou copie e cole este link em seu navegador:<br>
+                  <code style="background: #f5f5f5; padding: 5px 10px; border-radius: 3px;">${verifyLink}</code>
+                </p>
+                
+                <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                
+                <p style="color: #999; font-size: 12px;">
+                  <strong>Informações da conta:</strong><br>
+                  Email: ${email}<br>
+                  Empresa: ${empresa || 'Não informado'}<br>
+                  Data de criação: ${new Date().toLocaleDateString('pt-BR')}
+                </p>
+              </div>
+              
+              <p style="color: #999; font-size: 11px; text-align: center; margin-top: 20px;">
+                Se você não criou esta conta, ignore este email.<br>
+                Este é um email automático, por favor não responda.
+              </p>
+            </div>
           `
         });
+        
+        console.log(`📧 Email de confirmação enviado para: ${email}`);
       } catch (emailError) {
-        console.error('Erro ao enviar email:', emailError);
+        console.error('Erro ao enviar email de confirmação:', emailError);
         // Continua mesmo se o email falhar - não bloqueia registro
       }
     }
@@ -135,7 +206,7 @@ router.post('/register', [
 // ==================== LOGIN ====================
 /**
  * POST /api/auth/login
- * Autentica usuário e retorna JWT token
+ * Autentica usuário e retorna JWT token com gestão de sessões
  * 
  * Validações:
  * - Email deve ser formato válido
@@ -144,13 +215,17 @@ router.post('/register', [
  * Processo:
  * 1. Busca usuário no banco pelo email
  * 2. Compara senha com hash usando bcrypt
- * 3. Gera JWT token com expiração de 24h
- * 4. Retorna token + dados do usuário
+ * 3. Invalida outras sessões ativas do usuário (segurança multi-device)
+ * 4. Cria nova sessão no banco com expiração de 12h
+ * 5. Gera JWT token com expiração de 12h
+ * 6. Retorna token + session_id + dados do usuário
  * 
  * Token deve ser enviado em requisições subsequentes:
  * Header: Authorization: Bearer <token>
  * 
- * @returns {object} { success, token, id, nome }
+ * Session ID deve ser armazenado no localStorage e validado em req.headers
+ * 
+ * @returns {object} { success, token, session_id, expiresIn, id, nome }
  */
 router.post('/login', [
   body('email').isEmail().normalizeEmail(),
@@ -192,23 +267,60 @@ router.post('/login', [
       });
     }
 
-    // Gera token JWT
+    // Verifica se o email foi confirmado
+    if (!user.email_verificado) {
+      return res.status(403).json({
+        success: false,
+        error: 'Por favor, confirme seu email antes de fazer login',
+        requiresEmailVerification: true,
+        email: user.email
+      });
+    }
+
+    // ===== GESTÃO DE SESSÕES =====
+    // Invalida todas as sessões anteriores deste usuário
+    await query(
+      'UPDATE user_sessions SET ativo = false WHERE user_id = $1 AND ativo = true',
+      [user.id]
+    );
+
+    // Gera um ID único para a sessão
+    const sessionId = crypto.randomBytes(32).toString('hex');
+    
+    // Define expiração em 12 horas
+    const expiresIn = 43200; // 12 horas em segundos
+    const expiryTime = new Date(Date.now() + expiresIn * 1000);
+
+    // Extrai informações do dispositivo do header User-Agent
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+    const ipAddress = req.ip || req.connection.remoteAddress || 'Unknown';
+
+    // Registra a nova sessão no banco
+    await query(
+      `INSERT INTO user_sessions (user_id, session_id, device_info, ip_address, expires_at, ativo)
+       VALUES ($1, $2, $3, $4, $5, true)`,
+      [user.id, sessionId, userAgent, ipAddress, expiryTime]
+    );
+
+    // Gera token JWT com expiração de 12h
     const token = jwt.sign(
-      { userId: user.id, email: user.email },
+      { userId: user.id, email: user.email, sessionId: sessionId },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: `${expiresIn}s` }
     );
 
     // Log de atividade
     await query(
       `INSERT INTO activity_logs (user_id, acao, ip_address, user_agent) 
        VALUES ($1, $2, $3, $4)`,
-      [user.id, 'login', req.ip, req.headers['user-agent']]
+      [user.id, 'login', ipAddress, userAgent]
     );
 
     res.json({
       success: true,
       token,
+      session_id: sessionId,
+      expiresIn: expiresIn,
       user: {
         id: user.id,
         nome: user.nome,
@@ -354,6 +466,196 @@ router.get('/verify-email/:token', async (req, res) => {
   } catch (error) {
     console.error('Erro ao verificar email:', error);
     res.status(500).send('Erro ao verificar email');
+  }
+});
+
+/**
+ * POST /api/auth/verify-email
+ * Verifica email via POST (para requisição JSON)
+ * 
+ * Body: { token }
+ * 
+ * @returns {object} { success, message, user }
+ */
+router.post('/verify-email', async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token não fornecido'
+      });
+    }
+
+    const result = await query(
+      'UPDATE users SET email_verificado = true, token_verificacao = NULL WHERE token_verificacao = $1 RETURNING id, nome, email',
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token inválido, expirado ou já utilizado'
+      });
+    }
+
+    const user = result.rows[0];
+
+    // Log de atividade
+    await query(
+      `INSERT INTO activity_logs (user_id, acao, ip_address, user_agent) 
+       VALUES ($1, $2, $3, $4)`,
+      [user.id, 'email_confirmado', req.ip, req.headers['user-agent']]
+    );
+
+    console.log(`✅ Email confirmado para usuário: ${user.email}`);
+
+    res.json({
+      success: true,
+      message: 'Email confirmado com sucesso! Sua conta foi ativada.',
+      user: {
+        id: user.id,
+        nome: user.nome,
+        email: user.email
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro ao verificar email (POST):', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao confirmar email'
+    });
+  }
+});
+
+// ==================== LOGOUT ====================
+/**
+ * POST /api/auth/logout
+ * Invalida a sessão do usuário no banco de dados
+ * 
+ * Requer:
+ * - Header: Authorization: Bearer <token>
+ * - Header: X-Session-Id: <session_id>
+ * 
+ * @returns {object} { success, message }
+ */
+const { authenticateToken } = require('../middleware/auth');
+
+router.post('/logout', authenticateToken, async (req, res) => {
+  try {
+    const sessionId = req.headers['x-session-id'];
+    const userId = req.user.id;
+
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Session ID não fornecido'
+      });
+    }
+
+    // Invalida a sessão no banco
+    const result = await query(
+      'UPDATE user_sessions SET ativo = false WHERE user_id = $1 AND session_id = $2',
+      [userId, sessionId]
+    );
+
+    // Log de atividade
+    await query(
+      `INSERT INTO activity_logs (user_id, acao, ip_address, user_agent) 
+       VALUES ($1, $2, $3, $4)`,
+      [userId, 'logout', req.ip, req.headers['user-agent']]
+    );
+
+    res.json({
+      success: true,
+      message: 'Logout realizado com sucesso'
+    });
+
+  } catch (error) {
+    console.error('Erro no logout:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao fazer logout'
+    });
+  }
+});
+
+// ==================== VALIDAR SESSÃO ====================
+/**
+ * GET /api/auth/validate-session
+ * Verifica se a sessão do usuário ainda está ativa e válida
+ * 
+ * Requer:
+ * - Header: Authorization: Bearer <token>
+ * - Header: X-Session-Id: <session_id>
+ * 
+ * Valida:
+ * - Se session_id ainda existe no banco
+ * - Se não foi expirada (12h)
+ * - Se não foi invalidada por novo login
+ * 
+ * @returns {object} { success, valid: boolean, message? }
+ */
+router.get('/validate-session', authenticateToken, async (req, res) => {
+  try {
+    const sessionId = req.headers['x-session-id'];
+    const userId = req.user.id;
+
+    if (!sessionId) {
+      return res.json({
+        success: true,
+        valid: false,
+        message: 'Session ID não fornecido'
+      });
+    }
+
+    // Busca a sessão no banco
+    const result = await query(
+      `SELECT * FROM user_sessions 
+       WHERE user_id = $1 AND session_id = $2 AND ativo = true`,
+      [userId, sessionId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({
+        success: true,
+        valid: false,
+        message: 'Sessão não encontrada ou foi invalidada'
+      });
+    }
+
+    const session = result.rows[0];
+    const now = new Date();
+    const expiryTime = new Date(session.expires_at);
+
+    // Verifica se a sessão expirou
+    if (now > expiryTime) {
+      await query(
+        'UPDATE user_sessions SET ativo = false WHERE session_id = $1',
+        [sessionId]
+      );
+      
+      return res.json({
+        success: true,
+        valid: false,
+        message: 'Sessão expirada'
+      });
+    }
+
+    res.json({
+      success: true,
+      valid: true,
+      expiresAt: expiryTime
+    });
+
+  } catch (error) {
+    console.error('Erro ao validar sessão:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao validar sessão'
+    });
   }
 });
 

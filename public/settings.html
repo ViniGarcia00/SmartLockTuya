@@ -504,15 +504,6 @@
             <div class="tab-content active" data-content="geral">
                 <div class="config-section">
                     <h3>Configurações Gerais</h3>
-                    
-                    <div class="config-item" id="open-tuya-btn">
-                        <span class="config-item-icon">🔌</span>
-                        <div class="config-item-content">
-                            <div class="config-item-title">Configurações Conta Tuya</div>
-                            <div class="config-item-desc">Configurar credenciais da API Tuya Cloud</div>
-                        </div>
-                        <span class="config-item-arrow">→</span>
-                    </div>
                 </div>
             </div>
 
@@ -576,78 +567,109 @@
         </div>
     </main>
 
-    <!-- Modal Tuya Config -->
-    <div class="modal" id="tuya-modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>🔌 Configurações Tuya</h3>
-                <button class="modal-close" id="close-tuya-modal">×</button>
-            </div>
-
-            <div class="info-box">
-                <strong>ℹ️ Como obter suas credenciais Tuya:</strong>
-                <p>1. Acesse <a href="https://iot.tuya.com" target="_blank">iot.tuya.com</a></p>
-                <p>2. Faça login e vá em Cloud → Development</p>
-                <p>3. Crie um projeto Cloud e copie o Client ID e Secret</p>
-            </div>
-
-            <form id="tuya-form">
-                <div class="form-group">
-                    <label>Client ID *</label>
-                    <input type="text" id="tuya-client-id" required placeholder="Ex: sakwdjwyftafvfvqetdv">
-                    <div class="field-error" id="error-client-id">Campo obrigatório</div>
-                </div>
-
-                <div class="form-group">
-                    <label>Client Secret *</label>
-                    <input type="text" id="tuya-client-secret" required placeholder="Digite o Client Secret" autocomplete="off">
-                    <div class="field-error" id="error-client-secret">Campo obrigatório</div>
-                </div>
-
-                <div class="form-group">
-                    <label>Region Host *</label>
-                    <input type="text" id="tuya-region" required placeholder="Ex: openapi.tuyaus.com">
-                    <div class="field-error" id="error-region">Campo obrigatório</div>
-                    <small style="color: #666; font-size: 12px; display: block; margin-top: 5px;">
-                        Sugestões: openapi.tuyaus.com (EUA), openapi.tuyaeu.com (Europa), openapi.tuyacn.com (China)
-                    </small>
-                </div>
-
-                <div id="test-result"></div>
-
-                <div style="display: flex; gap: 10px; margin-top: 20px;">
-                    <button type="button" class="btn btn-danger" id="clear-tuya-btn" style="flex: 1;">
-                        ↻ Resetar Conta
-                    </button>
-                    <button type="button" class="btn btn-primary" id="test-tuya-btn" style="flex: 1;">
-                        🔍 Testar Conexão e Salvar
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <script>
         const API_URL = 'http://localhost:3000/api';
         let currentUser = null;
+        let sessionValidationInterval = null;
 
         function checkAuth() {
             const token = localStorage.getItem('token');
+            const sessionId = localStorage.getItem('session_id');
             const user = localStorage.getItem('user');
+            const sessionExpires = localStorage.getItem('session_expires');
             
-            if (!token || !user) {
+            if (!token || !sessionId || !user || !sessionExpires) {
+                console.warn('❌ Dados de autenticação incompletos');
+                localStorage.removeItem('token');
+                localStorage.removeItem('session_id');
+                localStorage.removeItem('user');
+                localStorage.removeItem('session_expires');
+                localStorage.removeItem('currentLockId');
                 window.location.href = 'login.html';
+                return false;
+            }
+
+            // Verifica se sessão expirou
+            const expiryTime = new Date(sessionExpires);
+            if (new Date() > expiryTime) {
+                console.warn('❌ Sessão expirada');
+                localStorage.removeItem('token');
+                localStorage.removeItem('session_id');
+                localStorage.removeItem('user');
+                localStorage.removeItem('session_expires');
+                localStorage.removeItem('currentLockId');
+                showAlert('Sua sessão expirou. Por favor, faça login novamente.', 'error');
+                setTimeout(() => {
+                    window.location.href = 'login.html';
+                }, 2000);
                 return false;
             }
             
             currentUser = JSON.parse(user);
+            
+            // Inicia validação periódica de sessão
+            startSessionValidation();
+            
             return true;
+        }
+
+        function startSessionValidation() {
+            if (sessionValidationInterval) return;
+            
+            sessionValidationInterval = setInterval(validateSessionWithServer, 5 * 60 * 1000);
+            
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    validateSessionWithServer();
+                }
+            });
+        }
+
+        async function validateSessionWithServer() {
+            try {
+                const token = localStorage.getItem('token');
+                const sessionId = localStorage.getItem('session_id');
+                
+                if (!token || !sessionId) return;
+                
+                const response = await fetch(`${API_URL}/auth/validate-session`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'X-Session-Id': sessionId
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!data.valid) {
+                    console.warn('❌ Sessão inválida:', data.message);
+                    
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('session_id');
+                    localStorage.removeItem('user');
+                    localStorage.removeItem('session_expires');
+                    localStorage.removeItem('currentLockId');
+                    
+                    if (sessionValidationInterval) {
+                        clearInterval(sessionValidationInterval);
+                        sessionValidationInterval = null;
+                    }
+                    
+                    showAlert(data.message || 'Sessão invalidada. Você foi desconectado.', 'error');
+                    setTimeout(() => {
+                        window.location.href = 'login.html';
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('Erro ao validar sessão:', error);
+            }
         }
 
         function getHeaders() {
             return {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'X-Session-Id': localStorage.getItem('session_id') || ''
             };
         }
 
@@ -685,34 +707,6 @@
                 hideFieldError(fieldId, `error-${fieldId.replace('tuya-', '')}`);
             });
         }
-
-        function validateTuyaFields() {
-            hideAllFieldErrors();
-            
-            const clientId = document.getElementById('tuya-client-id').value.trim();
-            const clientSecret = document.getElementById('tuya-client-secret').value.trim();
-            const region = document.getElementById('tuya-region').value.trim();
-
-            let hasError = false;
-
-            if (!clientId) {
-                showFieldError('tuya-client-id', 'error-client-id');
-                hasError = true;
-            }
-
-            if (!clientSecret) {
-                showFieldError('tuya-client-secret', 'error-client-secret');
-                hasError = true;
-            }
-
-            if (!region) {
-                showFieldError('tuya-region', 'error-region');
-                hasError = true;
-            }
-
-            return !hasError;
-        }
-
         document.addEventListener('DOMContentLoaded', () => {
             if (!checkAuth()) return;
 
@@ -728,194 +722,42 @@
 
             document.getElementById('logout-link').addEventListener('click', (e) => {
                 e.preventDefault();
+                const token = localStorage.getItem('token');
+                const sessionId = localStorage.getItem('session_id');
+                
                 if (confirm('Deseja realmente sair?')) {
-                    localStorage.clear();
+                    if (token && sessionId) {
+                        fetch(`${API_URL}/auth/logout`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`,
+                                'X-Session-Id': sessionId
+                            }
+                        }).catch(err => console.error('Erro ao fazer logout:', err));
+                    }
+                    
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('session_id');
+                    localStorage.removeItem('user');
+                    localStorage.removeItem('session_expires');
+                    localStorage.removeItem('currentLockId');
+                    
+                    if (sessionValidationInterval) {
+                        clearInterval(sessionValidationInterval);
+                        sessionValidationInterval = null;
+                    }
+                    
                     window.location.href = 'login.html';
                 }
             });
 
-            document.getElementById('open-tuya-btn').addEventListener('click', openTuyaModal);
-            document.getElementById('close-tuya-modal').addEventListener('click', closeTuyaModal);
             document.getElementById('change-password-btn').addEventListener('click', () => showAlert('Em desenvolvimento', 'info'));
             document.getElementById('activity-logs-btn').addEventListener('click', () => showAlert('Em desenvolvimento', 'info'));
-
-            document.getElementById('test-tuya-btn').addEventListener('click', handleTuyaTest);
-            document.getElementById('clear-tuya-btn').addEventListener('click', handleClearTuya);
             document.getElementById('profile-form').addEventListener('submit', handleProfileSubmit);
 
-            ['tuya-client-id', 'tuya-client-secret', 'tuya-region'].forEach(fieldId => {
-                document.getElementById(fieldId).addEventListener('input', () => {
-                    hideFieldError(fieldId, `error-${fieldId.replace('tuya-', '')}`);
-                    document.getElementById('test-result').classList.remove('show');
-                });
-            });
-
             loadProfile();
-
-            if (window.location.hash === '#tuya') {
-                openTuyaModal();
-            }
         });
-
-        function openTuyaModal() {
-            document.getElementById('tuya-modal').classList.add('show');
-            loadTuyaConfig();
-            hideAllFieldErrors();
-            document.getElementById('test-result').classList.remove('show');
-        }
-
-        function closeTuyaModal() {
-            document.getElementById('tuya-modal').classList.remove('show');
-            hideAllFieldErrors();
-            document.getElementById('test-result').classList.remove('show');
-        }
-
-        async function loadTuyaConfig() {
-            try {
-                const res = await fetch(`${API_URL}/config/tuya`, { headers: getHeaders() });
-                const data = await res.json();
-                
-                if (data.success && data.result) {
-                    document.getElementById('tuya-client-id').value = data.result.client_id || '';
-                    document.getElementById('tuya-client-secret').value = data.result.client_secret || '';
-                    document.getElementById('tuya-region').value = data.result.region_host || 'openapi.tuyaus.com';
-                }
-            } catch (err) {
-                console.error('Erro ao carregar config:', err);
-            }
-        }
-
-        async function handleTuyaSubmit(e) {
-            e.preventDefault();
-            
-            if (!validateTuyaFields()) {
-                return;
-            }
-
-            const clientId = document.getElementById('tuya-client-id').value.trim();
-            const clientSecret = document.getElementById('tuya-client-secret').value.trim();
-            const region = document.getElementById('tuya-region').value.trim();
-
-            try {
-                const res = await fetch(`${API_URL}/config/tuya`, {
-                    method: 'POST',
-                    headers: getHeaders(),
-                    body: JSON.stringify({
-                        client_id: clientId,
-                        client_secret: clientSecret,
-                        region_host: region
-                    })
-                });
-
-                const data = await res.json();
-
-                if (data.success) {
-                    showAlert('✅ Configurações salvas com sucesso!', 'success');
-                    closeTuyaModal();
-                } else {
-                    showAlert(`❌ ${data.error}`, 'error');
-                }
-            } catch (err) {
-                showAlert('❌ Erro ao salvar configurações', 'error');
-            }
-        }
-
-        async function handleTuyaTest() {
-            if (!validateTuyaFields()) {
-                return;
-            }
-
-            const clientId = document.getElementById('tuya-client-id').value.trim();
-            const clientSecret = document.getElementById('tuya-client-secret').value.trim();
-            const region = document.getElementById('tuya-region').value.trim();
-
-            const testResult = document.getElementById('test-result');
-            const testBtn = document.getElementById('test-tuya-btn');
-            
-            testResult.className = '';
-            testResult.classList.add('show');
-            testResult.innerHTML = '🔄 Conectando ao servidor Tuya...';
-            testBtn.disabled = true;
-            testBtn.innerHTML = '<span class="loading"></span> Testando e salvando...';
-
-            try {
-                const saveRes = await fetch(`${API_URL}/config/tuya`, {
-                    method: 'POST',
-                    headers: getHeaders(),
-                    body: JSON.stringify({
-                        client_id: clientId,
-                        client_secret: clientSecret,
-                        region_host: region
-                    })
-                });
-
-                const saveData = await saveRes.json();
-
-                if (!saveData.success) {
-                    throw new Error(saveData.error || 'Erro ao salvar configurações');
-                }
-
-                await new Promise(resolve => setTimeout(resolve, 500));
-
-                const testRes = await fetch(`${API_URL}/config/tuya/test`, { 
-                    method: 'POST',
-                    headers: getHeaders()
-                });
-
-                const testData = await testRes.json();
-
-                if (testData.success) {
-                    testResult.className = 'success show';
-                    testResult.innerHTML = `✅ Conexão testada e configurações salvas!<br><small>Region: ${testData.result.region}</small>`;
-                    
-                    setTimeout(() => {
-                        closeTuyaModal();
-                    }, 1500);
-                } else {
-                    throw new Error(testData.error || 'Falha na conexão');
-                }
-
-            } catch (err) {
-                console.error('Erro no teste:', err);
-                testResult.className = 'error show';
-                testResult.innerHTML = `❌ ${err.message || 'Falha na conexão'}<br><small>Verifique suas credenciais e Region Host</small>`;
-                
-                setTimeout(() => {
-                    testResult.classList.remove('show');
-                }, 5000);
-            } finally {
-                testBtn.disabled = false;
-                testBtn.innerHTML = '🔍 Testar Conexão';
-            }
-        }
-
-        async function handleClearTuya() {
-            if (!confirm('⚠️ Tem certeza que deseja limpar todas as configurações Tuya? Isto apagará suas credenciais.')) {
-                return;
-            }
-
-            try {
-                const res = await fetch(`${API_URL}/config/tuya`, {
-                    method: 'DELETE',
-                    headers: getHeaders()
-                });
-
-                const data = await res.json();
-
-                if (data.success) {
-                    showAlert('✅ Configurações Tuya removidas!', 'success');
-                    document.getElementById('tuya-client-id').value = '';
-                    document.getElementById('tuya-client-secret').value = '';
-                    document.getElementById('tuya-region').value = '';
-                    document.getElementById('test-result').classList.remove('show');
-                } else {
-                    showAlert(`❌ ${data.error}`, 'error');
-                }
-            } catch (err) {
-                console.error('Erro ao limpar config:', err);
-                showAlert('❌ Erro ao limpar configurações', 'error');
-            }
-        }
 
         async function loadProfile() {
             try {
