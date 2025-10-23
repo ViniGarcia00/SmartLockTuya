@@ -327,10 +327,21 @@ app.get('/api/device/:deviceId/temp-passwords', authenticateToken, async (req, r
     });
 
     console.log(`📋 GET /temp-passwords - Resposta Tuya:`, JSON.stringify(response.data, null, 2));
+    
+    // 🔥 FILTRAR SENHAS COM PHASE 0 (DELETADAS)
     if (response.data.result && Array.isArray(response.data.result)) {
-      console.log(`📊 Total de senhas: ${response.data.result.length}`);
+      const totalBefore = response.data.result.length;
+      // Manter apenas senhas que NÃO estão deletadas (phase !== 0)
+      response.data.result = response.data.result.filter(pwd => pwd.phase !== 0);
+      const totalAfter = response.data.result.length;
+      
+      if (totalBefore !== totalAfter) {
+        console.log(`🗑️ Removido ${totalBefore - totalAfter} senhas deletadas (phase: 0)`);
+      }
+      
+      console.log(`📊 Total de senhas ATIVAS: ${totalAfter}`);
       response.data.result.forEach((pwd, idx) => {
-        console.log(`  [${idx}] id: ${pwd.id}, name: ${pwd.name}, effective_time: ${pwd.effective_time}, invalid_time: ${pwd.invalid_time}`);
+        console.log(`  [${idx}] id: ${pwd.id}, name: ${pwd.name}, phase: ${pwd.phase}, effective_time: ${pwd.effective_time}, invalid_time: ${pwd.invalid_time}`);
       });
     }
 
@@ -806,6 +817,57 @@ app.post('/api/config/tuya/test', authenticateToken, async (req, res) => {
       success: false, 
       error: 'Erro ao conectar com servidor Tuya'
     });
+  }
+});
+
+// DEBUG: Analisar senhas stuck em phase 3
+app.get('/api/debug/phase3-analysis/:deviceId', authenticateToken, async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const accessToken = await ensureToken(req.user.id);
+    const regionHost = process.env.TUYA_REGION_HOST;
+    const clientId = process.env.TUYA_CLIENT_ID;
+    
+    const url = `/v1.0/devices/${deviceId}/door-lock/temp-passwords`;
+    const { sign, t } = generateSign('GET', url, '', accessToken);
+
+    const response = await axios.get(`https://${regionHost}${url}`, {
+      headers: {
+        client_id: clientId,
+        access_token: accessToken,
+        sign,
+        sign_method: 'HMAC-SHA256',
+        t,
+      },
+    });
+
+    const now = Math.floor(Date.now() / 1000);
+    const phase3Passwords = response.data.result.filter(p => p.phase === 3);
+    
+    const analysis = phase3Passwords.map(p => {
+      const hoursSinceStart = (now - p.effective_time) / 3600;
+      const hoursUntilExpires = (p.invalid_time - now) / 3600;
+      return {
+        id: p.id,
+        name: p.name,
+        created: new Date(p.effective_time * 1000).toISOString(),
+        expires: new Date(p.invalid_time * 1000).toISOString(),
+        hoursSinceCreated: hoursSinceStart.toFixed(2),
+        hoursUntilExpires: hoursUntilExpires.toFixed(2),
+        status: '🔴 PRESO em Phase 3 (A ser deletada)',
+        insight: hoursSinceStart > 24 ? '❌ Mais de 24h e ainda não deletou!' : '⏳ Ainda dentro do prazo'
+      };
+    });
+
+    res.json({
+      success: true,
+      totalPasswords: response.data.result.length,
+      phase3Count: phase3Passwords.length,
+      analysis
+    });
+  } catch (err) {
+    console.error('Erro na análise:', err.message);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
