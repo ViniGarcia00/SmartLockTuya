@@ -18,4 +18,15 @@ module.exports = {
       statements: 50,
     },
   },
+  globals: {
+    'ts-jest': {
+      useESM: true,
+    },
+  },
+  moduleNameMapper: {
+    '^uuid$': 'uuid',
+  },
+  transformIgnorePatterns: [
+    'node_modules/(?!(uuid)/)',
+  ],
 };
