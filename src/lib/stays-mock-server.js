@@ -13,14 +13,6 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const { Request, Response, NextFunction } = require('express');
-
-// Tipos
-import type {
-  Reservation,
-  Accommodation,
-  StaysApiResponse,
-} from './stays.types';
 
 /**
  * Carregar dados mock dos arquivos JSON
@@ -34,8 +26,8 @@ function loadMockData() {
     const accommodationsData = fs.readFileSync(accommodationsPath, 'utf-8');
 
     return {
-      reservations: JSON.parse(reservationsData) as Reservation[],
-      accommodations: JSON.parse(accommodationsData) as Accommodation[],
+      reservations: JSON.parse(reservationsData),
+      accommodations: JSON.parse(accommodationsData),
     };
   } catch (error) {
     console.error('❌ Erro ao carregar dados mock:', error);
@@ -46,7 +38,7 @@ function loadMockData() {
 /**
  * Inicializar servidor mock
  */
-export function createMockServer() {
+function createMockServer() {
   const app = express();
   const mockData = loadMockData();
 
@@ -54,7 +46,7 @@ export function createMockServer() {
   app.use(express.json());
 
   // Logger customizado
-  app.use((req: Request, res: Response, next: NextFunction) => {
+  app.use((req, res, next) => {
     const timestamp = new Date().toISOString();
     console.log(`\n[${timestamp}] 📡 ${req.method.toUpperCase()} ${req.path}`);
 
@@ -72,10 +64,10 @@ export function createMockServer() {
   // =========================================================================
   // Endpoint: GET /v1/reservations
   // =========================================================================
-  app.get('/v1/reservations', (req: Request, res: Response) => {
+  app.get('/v1/reservations', (req, res) => {
     try {
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
+      const limit = parseInt(req.query.limit) || 50;
+      const offset = parseInt(req.query.offset) || 0;
 
       // Validar
       if (limit <= 0 || limit > 100) {
@@ -93,7 +85,7 @@ export function createMockServer() {
       const paginatedData = mockData.reservations.slice(offset, offset + limit);
       const totalPages = Math.ceil(total / limit);
 
-      const response: StaysApiResponse<Reservation[]> = {
+      const response = {
         success: true,
         data: paginatedData,
         statusCode: 200,
@@ -106,14 +98,13 @@ export function createMockServer() {
         },
       };
 
-      console.log(`    ✅ Retornando ${paginatedData.length}/${total} reservas`);
       res.status(200).json(response);
     } catch (error) {
-      console.error('    ❌ Erro:', error);
+      console.error('❌ Erro em /v1/reservations:', error);
       res.status(500).json({
         success: false,
-        error: 'Internal server error',
-        errorType: 'UNKNOWN_ERROR',
+        error: 'Erro interno do servidor',
+        errorType: 'SERVER_ERROR',
         statusCode: 500,
         timestamp: new Date().toISOString(),
       });
@@ -123,16 +114,16 @@ export function createMockServer() {
   // =========================================================================
   // Endpoint: GET /v1/accommodations
   // =========================================================================
-  app.get('/v1/accommodations', (req: Request, res: Response) => {
+  app.get('/v1/accommodations', (req, res) => {
     try {
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
+      const limit = parseInt(req.query.limit) || 50;
+      const offset = parseInt(req.query.offset) || 0;
 
       // Validar
       if (limit <= 0 || limit > 100) {
         return res.status(400).json({
           success: false,
-          error: 'Invalid limit parameter',
+          error: 'Invalid limit parameter (deve estar entre 1 e 100)',
           errorType: 'VALIDATION_ERROR',
           statusCode: 400,
           timestamp: new Date().toISOString(),
@@ -144,7 +135,7 @@ export function createMockServer() {
       const paginatedData = mockData.accommodations.slice(offset, offset + limit);
       const totalPages = Math.ceil(total / limit);
 
-      const response: StaysApiResponse<Accommodation[]> = {
+      const response = {
         success: true,
         data: paginatedData,
         statusCode: 200,
@@ -157,14 +148,13 @@ export function createMockServer() {
         },
       };
 
-      console.log(`    ✅ Retornando ${paginatedData.length}/${total} acomodações`);
       res.status(200).json(response);
     } catch (error) {
-      console.error('    ❌ Erro:', error);
+      console.error('❌ Erro em /v1/accommodations:', error);
       res.status(500).json({
         success: false,
-        error: 'Internal server error',
-        errorType: 'UNKNOWN_ERROR',
+        error: 'Erro interno do servidor',
+        errorType: 'SERVER_ERROR',
         statusCode: 500,
         timestamp: new Date().toISOString(),
       });
@@ -174,28 +164,30 @@ export function createMockServer() {
   // =========================================================================
   // Endpoint: GET /v1/reservations/updated-since
   // =========================================================================
-  app.get('/v1/reservations/updated-since', (req: Request, res: Response) => {
+  app.get('/v1/reservations/updated-since', (req, res) => {
     try {
-      const timestamp = req.query.timestamp as string;
-      const limit = parseInt(req.query.limit as string) || 50;
+      const timestamp = req.query.timestamp;
+      const limit = parseInt(req.query.limit) || 50;
+      const offset = parseInt(req.query.offset) || 0;
 
       // Validar timestamp
       if (!timestamp) {
         return res.status(400).json({
           success: false,
-          error: 'Missing required parameter: timestamp',
+          error: 'timestamp parameter é obrigatório',
           errorType: 'VALIDATION_ERROR',
           statusCode: 400,
           timestamp: new Date().toISOString(),
         });
       }
 
-      // Tentar parseá-lo
-      const sinceDate = new Date(timestamp);
-      if (isNaN(sinceDate.getTime())) {
+      // Validar timestamp é ISO string válida
+      try {
+        new Date(timestamp).toISOString();
+      } catch {
         return res.status(400).json({
           success: false,
-          error: 'Invalid timestamp format. Use ISO 8601 (ex: 2025-10-23T00:00:00Z)',
+          error: 'timestamp deve ser uma data válida em formato ISO',
           errorType: 'VALIDATION_ERROR',
           statusCode: 400,
           timestamp: new Date().toISOString(),
@@ -203,28 +195,38 @@ export function createMockServer() {
       }
 
       // Filtrar por timestamp
-      const filteredData = mockData.reservations
-        .filter((res) => new Date(res.updatedAt) >= sinceDate)
-        .slice(0, limit);
+      const timestampDate = new Date(timestamp);
+      const filtered = mockData.reservations.filter((res) => {
+        const resUpdatedAt = new Date(res.updatedAt);
+        return resUpdatedAt >= timestampDate;
+      });
 
-      const response: StaysApiResponse<Reservation[]> = {
+      // Aplicar paginação
+      const total = filtered.length;
+      const paginatedData = filtered.slice(offset, offset + limit);
+      const totalPages = Math.ceil(total / limit);
+
+      const response = {
         success: true,
-        data: filteredData,
+        data: paginatedData,
         statusCode: 200,
         timestamp: new Date().toISOString(),
         metadata: {
-          total: filteredData.length,
+          total,
+          page: Math.floor(offset / limit) + 1,
+          pageSize: limit,
+          totalPages,
+          filteredSince: timestamp,
         },
       };
 
-      console.log(`    ✅ Retornando ${filteredData.length} reservas atualizadas desde ${timestamp}`);
       res.status(200).json(response);
     } catch (error) {
-      console.error('    ❌ Erro:', error);
+      console.error('❌ Erro em /v1/reservations/updated-since:', error);
       res.status(500).json({
         success: false,
-        error: 'Internal server error',
-        errorType: 'UNKNOWN_ERROR',
+        error: 'Erro interno do servidor',
+        errorType: 'SERVER_ERROR',
         statusCode: 500,
         timestamp: new Date().toISOString(),
       });
@@ -232,31 +234,22 @@ export function createMockServer() {
   });
 
   // =========================================================================
-  // Health Check
+  // Endpoint: GET /health
   // =========================================================================
-  app.get('/health', (req: Request, res: Response) => {
+  app.get('/health', (req, res) => {
     res.status(200).json({
-      status: 'ok',
-      message: 'Mock Stays API Server is running',
+      success: true,
+      status: 'healthy',
       timestamp: new Date().toISOString(),
-      endpoints: [
-        'GET /v1/reservations?limit=50&offset=0',
-        'GET /v1/accommodations?limit=50&offset=0',
-        'GET /v1/reservations/updated-since?timestamp=ISO&limit=50',
-        'GET /health',
-      ],
     });
   });
 
-  // =========================================================================
   // 404 Handler
-  // =========================================================================
-  app.use((req: Request, res: Response) => {
-    console.log(`    ⚠️  Endpoint não encontrado`);
+  app.use((req, res) => {
     res.status(404).json({
       success: false,
-      error: `Endpoint not found: ${req.method} ${req.path}`,
-      errorType: 'NOT_FOUND',
+      error: 'Endpoint não encontrado',
+      path: req.path,
       statusCode: 404,
       timestamp: new Date().toISOString(),
     });
@@ -268,11 +261,11 @@ export function createMockServer() {
 /**
  * Iniciar servidor mock
  */
-export async function startMockServer(port: number = 3001) {
+async function startMockServer(port = 3001) {
   try {
     const app = createMockServer();
 
-    app.listen(port, () => {
+    const server = app.listen(port, '0.0.0.0', () => {
       console.log(`
 ╔════════════════════════════════════════════════════════╗
 ║                                                        ║
@@ -292,6 +285,15 @@ export async function startMockServer(port: number = 3001) {
 ╚════════════════════════════════════════════════════════╝
       `);
     });
+
+    // Handle graceful shutdown
+    process.on('SIGINT', () => {
+      console.log('\n🛑 Parando servidor...');
+      server.close(() => {
+        console.log('✅ Servidor parado');
+        process.exit(0);
+      });
+    });
   } catch (error) {
     console.error('❌ Erro ao iniciar servidor mock:', error);
     process.exit(1);
@@ -304,4 +306,4 @@ if (require.main === module) {
   startMockServer(port);
 }
 
-export default createMockServer;
+module.exports = { createMockServer, startMockServer };

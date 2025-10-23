@@ -7,7 +7,7 @@
     "dev": "node server.js",
     "start": "node server.js",
     "start:prod": "cross-env NODE_ENV=production node server.js",
-    "mock:stays": "ts-node src/lib/stays-mock-server.ts",
+    "mock:stays": "node src/lib/stays-mock-server.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write ."
