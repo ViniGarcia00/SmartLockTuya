@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Acomodações & Fechaduras</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 20px;
+        }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(102, 126, 234, 0.2);
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header p {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+        }
+
+        /* ===== BUTTON ===== */
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* ===== TOOLBAR ===== */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(30, 41, 59, 0.8);
+            padding: 15px 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(100, 116, 139, 0.3);
+        }
+
+        .toolbar-left {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .toolbar-right {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-active {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+
+        .status-inactive {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        /* ===== TABLE ===== */
+        .table-container {
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 10px;
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: rgba(15, 23, 42, 0.8);
+            border-bottom: 2px solid rgba(100, 116, 139, 0.3);
+        }
+
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #cbd5e1;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid rgba(100, 116, 139, 0.2);
+            transition: background 0.2s;
+        }
+
+        tbody tr:hover {
+            background: rgba(100, 116, 139, 0.1);
+        }
+
+        td {
+            padding: 15px;
+            font-size: 14px;
+        }
+
+        td.actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* ===== MODAL ===== */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #1e293b;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+        }
+
+        .modal-header {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #cbd5e1;
+            font-size: 24px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover {
+            color: #f1f5f9;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #cbd5e1;
+        }
+
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 14px;
+        }
+
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            position: sticky;
+            top: 20px;
+            height: fit-content;
+        }
+
+        .sidebar-card {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .sidebar-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #cbd5e1;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .unmapped-locks-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .lock-item {
+            background: rgba(15, 23, 42, 0.8);
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            border-left: 3px solid #667eea;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .lock-item:hover {
+            background: rgba(102, 126, 234, 0.1);
+            border-left-color: #764ba2;
+        }
+
+        .lock-item.selected {
+            background: rgba(102, 126, 234, 0.2);
+            border-left-color: #764ba2;
+        }
+
+        /* ===== PAGINATION ===== */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            margin-top: 20px;
+        }
+
+        .pagination button {
+            padding: 8px 12px;
+            background: rgba(100, 116, 139, 0.2);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            border-radius: 6px;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+        }
+
+        .pagination button:hover {
+            background: rgba(102, 126, 234, 0.2);
+            border-color: #667eea;
+        }
+
+        .pagination button.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+
+        /* ===== ALERT ===== */
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideDown 0.3s ease;
+        }
+
+        .alert.success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .alert.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .alert.info {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ===== LOADING ===== */
+        .loading {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 1200px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: static;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .toolbar {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            th, td {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <!-- Header -->
+            <div class="header">
+                <h1>🏠 Acomodações & Fechaduras</h1>
+                <p>Gerencie o mapeamento de acomodações com fechaduras inteligentes</p>
+            </div>
+
+            <!-- Alert -->
+            <div id="alert" class="alert" style="display: none;"></div>
+
+            <!-- Toolbar -->
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <button class="btn btn-primary" id="syncBtn">
+                        <span class="loading" id="syncLoader" style="display: none;"></span>
+                        🔄 Sincronizar Acomodações
+                    </button>
+                    <span id="syncStatus" style="font-size: 13px; color: #94a3b8;"></span>
+                </div>
+                <div class="toolbar-right">
+                    <span id="totalCount" style="font-size: 13px; color: #94a3b8;"></span>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-container">
+                <table id="accommodationsTable">
+                    <thead>
+                        <tr>
+                            <th>Nome da Acomodação</th>
+                            <th>Status</th>
+                            <th>Fechadura Vinculada</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: #94a3b8;">
+                                Carregando acomodações...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination" id="pagination"></div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-card">
+                <div class="sidebar-title">🔓 Fechaduras Sem Mapeamento</div>
+                <div class="unmapped-locks-list" id="unmappedLocksList">
+                    <div style="color: #94a3b8; font-size: 13px;">Carregando...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Vincular -->
+    <div class="modal" id="linkModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>Vincular Fechadura</span>
+                <button class="modal-close" onclick="closeLinkModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Selecione uma Fechadura</label>
+                    <select id="lockSelect">
+                        <option value="">-- Selecione --</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" style="background: #475569; color: #e2e8f0;" onclick="closeLinkModal()">
+                    Cancelar
+                </button>
+                <button class="btn btn-success" onclick="confirmLink()">
+                    Vincular
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== ESTADO GLOBAL =====
+        let accommodations = [];
+        let locks = [];
+        let unmappedLocks = [];
+        let mappings = new Map();
+        let currentPage = 1;
+        const itemsPerPage = 10;
+        let selectedAccommodationId = null;
+
+        // ===== FUNÇÕES UTILITÁRIAS =====
+        function showAlert(message, type = 'info') {
+            const alertDiv = document.getElementById('alert');
+            alertDiv.textContent = message;
+            alertDiv.className = `alert ${type}`;
+            alertDiv.style.display = 'flex';
+            setTimeout(() => {
+                alertDiv.style.display = 'none';
+            }, 4000);
+        }
+
+        function getHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            };
+        }
+
+        // ===== CARREGAMENTO DE DADOS =====
+        async function loadData() {
+            try {
+                const response = await fetch('/api/admin/accommodations', {
+                    headers: getHeaders()
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erro: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                accommodations = data.accommodations || [];
+                locks = data.locks || [];
+                unmappedLocks = data.unmappedLocks || [];
+                
+                // Converter mappings array para Map
+                if (data.mappings && Array.isArray(data.mappings)) {
+                    mappings.clear();
+                    data.mappings.forEach(m => {
+                        mappings.set(m.accommodationId, m);
+                    });
+                }
+
+                renderTable();
+                renderUnmappedLocks();
+                updateTotalCount();
+            } catch (error) {
+                console.error('Erro ao carregar dados:', error);
+                showAlert('Erro ao carregar dados: ' + error.message, 'error');
+            }
+        }
+
+        // ===== RENDERIZAÇÃO =====
+        function renderTable() {
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const pageItems = accommodations.slice(start, end);
+
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            if (pageItems.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: #94a3b8;">
+                            Nenhuma acomodação encontrada
+                        </td>
+                    </tr>
+                `;
+                renderPagination();
+                return;
+            }
+
+            pageItems.forEach(accommodation => {
+                const mapping = mappings.get(accommodation.id);
+                const lock = mapping ? locks.find(l => l.id === mapping.lockId) : null;
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${accommodation.name}</strong></td>
+                    <td>
+                        <span class="status-badge ${accommodation.status === 'active' ? 'status-active' : 'status-inactive'}">
+                            ${accommodation.status === 'active' ? '✓ Ativa' : '✗ Inativa'}
+                        </span>
+                    </td>
+                    <td>
+                        ${lock ? `<span style="color: #10b981;">${lock.name}</span>` : '<span style="color: #94a3b8;">Sem mapeamento</span>'}
+                    </td>
+                    <td class="actions">
+                        ${!lock ? `
+                            <button class="btn btn-primary btn-small" onclick="openLinkModal('${accommodation.id}')">
+                                Vincular
+                            </button>
+                        ` : `
+                            <button class="btn btn-danger" onclick="unlinkLock('${accommodation.id}')">
+                                Desvincular
+                            </button>
+                        `}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            renderPagination();
+        }
+
+        function renderPagination() {
+            const totalPages = Math.ceil(accommodations.length / itemsPerPage);
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+
+            for (let i = 1; i <= totalPages; i++) {
+                const btn = document.createElement('button');
+                btn.textContent = i;
+                btn.className = i === currentPage ? 'active' : '';
+                btn.onclick = () => {
+                    currentPage = i;
+                    renderTable();
+                    window.scrollTo(0, 0);
+                };
+                pagination.appendChild(btn);
+            }
+        }
+
+        function renderUnmappedLocks() {
+            const list = document.getElementById('unmappedLocksList');
+            
+            if (unmappedLocks.length === 0) {
+                list.innerHTML = '<div style="color: #10b981; font-size: 13px;">✓ Todas as fechaduras mapeadas!</div>';
+                return;
+            }
+
+            list.innerHTML = unmappedLocks
+                .map(lock => `
+                    <div class="lock-item" onclick="selectUnmappedLock('${lock.id}')">
+                        <strong>${lock.name}</strong>
+                        <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">${lock.location || 'Local: N/A'}</div>
+                    </div>
+                `)
+                .join('');
+        }
+
+        function updateTotalCount() {
+            const mapped = mappings.size;
+            const total = accommodations.length;
+            document.getElementById('totalCount').textContent = `${mapped} de ${total} mapeadas`;
+        }
+
+        // ===== AÇÕES =====
+        async function syncAccommodations() {
+            const btn = document.getElementById('syncBtn');
+            const loader = document.getElementById('syncLoader');
+            
+            btn.disabled = true;
+            loader.style.display = 'inline-block';
+
+            try {
+                const response = await fetch('/api/admin/stays/sync-accommodations', {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erro: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                showAlert(`✓ ${data.synced || 0} acomodações sincronizadas`, 'success');
+                
+                // Recarregar dados
+                await loadData();
+            } catch (error) {
+                console.error('Erro ao sincronizar:', error);
+                showAlert('Erro ao sincronizar: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                loader.style.display = 'none';
+            }
+        }
+
+        function openLinkModal(accommodationId) {
+            selectedAccommodationId = accommodationId;
+            const select = document.getElementById('lockSelect');
+            select.innerHTML = '<option value="">-- Selecione --</option>';
+            
+            unmappedLocks.forEach(lock => {
+                const option = document.createElement('option');
+                option.value = lock.id;
+                option.textContent = lock.name;
+                select.appendChild(option);
+            });
+
+            document.getElementById('linkModal').classList.add('show');
+        }
+
+        function closeLinkModal() {
+            document.getElementById('linkModal').classList.remove('show');
+            selectedAccommodationId = null;
+        }
+
+        async function confirmLink() {
+            const lockId = document.getElementById('lockSelect').value;
+            
+            if (!lockId) {
+                showAlert('Selecione uma fechadura', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/admin/accommodations/link', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        accommodationId: selectedAccommodationId,
+                        lockId
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erro: ${response.statusText}`);
+                }
+
+                showAlert('✓ Fechadura vinculada com sucesso', 'success');
+                closeLinkModal();
+                await loadData();
+            } catch (error) {
+                console.error('Erro ao vincular:', error);
+                showAlert('Erro ao vincular: ' + error.message, 'error');
+            }
+        }
+
+        async function unlinkLock(accommodationId) {
+            if (!confirm('Tem certeza que deseja desvincular esta fechadura?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/admin/accommodations/unlink/${accommodationId}`, {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erro: ${response.statusText}`);
+                }
+
+                showAlert('✓ Fechadura desvinculada com sucesso', 'success');
+                await loadData();
+            } catch (error) {
+                console.error('Erro ao desvincular:', error);
+                showAlert('Erro ao desvincular: ' + error.message, 'error');
+            }
+        }
+
+        function selectUnmappedLock(lockId) {
+            // Função para seleção visual (pode expandir)
+            console.log('Lock selecionado:', lockId);
+        }
+
+        // ===== INICIALIZAÇÃO =====
+        document.getElementById('syncBtn').addEventListener('click', syncAccommodations);
+
+        // Verificar autenticação
+        if (!localStorage.getItem('token')) {
+            window.location.href = '/login.html';
+        } else {
+            loadData();
+        }
+    </script>
+</body>
+</html>

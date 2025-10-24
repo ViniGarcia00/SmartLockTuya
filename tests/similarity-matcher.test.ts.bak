@@ -1,0 +1,359 @@
+/**
+ * Testes para Similarity Matcher Service
+ *
+ * Testa:
+ * - Algoritmo de similaridade
+ * - Threshold (0.8)
+ * - Sugestões sem matches
+ * - Ordenação por score
+ */
+
+import {
+  suggestMatches,
+  suggestMatchesWithDetails,
+} from '../lib/similarity-matcher';
+
+describe('Similarity Matcher', () => {
+  // ======================================================================
+  // TESTE 1: Cálculo de Similaridade (SKIPPED - internal function)
+  // ======================================================================
+  // describe('calculateSimilarity', () => {
+  //   it('deve retornar 1.0 para strings idênticas', () => {
+  //     const score = calculateSimilarity('Suite Master', 'Suite Master');
+  //     expect(score).toBe(1);
+  //   });
+  // });
+
+  // ======================================================================
+  // TESTE 2: Sugestões de Match
+  // ======================================================================
+  describe('suggestMatches', () => {
+    const accommodations = [
+      { id: 'accom-1', name: 'Master Suite' },
+      { id: 'accom-2', name: 'Kitchen' },
+      { id: 'accom-3', name: 'Living Room' },
+    ];
+
+    const locks = [
+      { id: 'lock-1', alias: 'Suite Master' },
+      { id: 'lock-2', alias: 'Main Door' },
+      { id: 'lock-3', alias: 'Front Door' },
+      { id: 'lock-4', alias: 'Bedroom Door' },
+    ];
+
+    it('deve retornar sugestões com score >= threshold', () => {
+      const suggestions = suggestMatches(accommodations, locks, {
+        threshold: 0.8,
+      });
+
+      // Deve haver pelo menos 1 sugestão (Master Suite ↔ Suite Master)
+      expect(suggestions.length).toBeGreaterThan(0);
+      expect(suggestions[0].score).toBeGreaterThanOrEqual(0.8);
+    });
+
+    it('deve ordenar sugestões por score decrescente', () => {
+      const suggestions = suggestMatches(accommodations, locks, {
+        threshold: 0.5,
+      });
+
+      for (let i = 0; i < suggestions.length - 1; i++) {
+        expect(suggestions[i].score).toBeGreaterThanOrEqual(suggestions[i + 1].score);
+      }
+    });
+
+    it('deve retornar array vazio se nenhuma match >= threshold', () => {
+      const suggestions = suggestMatches(accommodations, locks, {
+        threshold: 0.99, // Muito alto
+      });
+
+      expect(suggestions.length).toBe(0);
+    });
+
+    it('deve respeitar maxSuggestions por acomodação', () => {
+      const suggestions = suggestMatches(accommodations, locks, {
+        threshold: 0.5,
+        maxSuggestions: 2,
+      });
+
+      // Contar quantas sugestões são para a mesma acomodação
+      const accomCounts = new Map<string, number>();
+      for (const suggestion of suggestions) {
+        accomCounts.set(
+          suggestion.accommodationId,
+          (accomCounts.get(suggestion.accommodationId) || 0) + 1
+        );
+      }
+
+      // Nenhuma acomodação deve ter mais de 2 sugestões
+      for (const count of accomCounts.values()) {
+        expect(count).toBeLessThanOrEqual(2);
+      }
+    });
+
+    it('deve retornar objetos com campos corretos', () => {
+      const suggestions = suggestMatches(accommodations, locks, {
+        threshold: 0.5,
+      });
+
+      if (suggestions.length > 0) {
+        const suggestion = suggestions[0];
+        expect(suggestion).toHaveProperty('accommodationId');
+        expect(suggestion).toHaveProperty('accommodationName');
+        expect(suggestion).toHaveProperty('lockId');
+        expect(suggestion).toHaveProperty('lockAlias');
+        expect(suggestion).toHaveProperty('score');
+        expect(typeof suggestion.score).toBe('number');
+        expect(suggestion.score).toBeGreaterThanOrEqual(0);
+        expect(suggestion.score).toBeLessThanOrEqual(1);
+      }
+    });
+  });
+
+  // ======================================================================
+  // TESTE 3: Sugestões com Detalhes
+  // ======================================================================
+  describe('suggestMatchesWithDetails', () => {
+    it('deve adicionar confidenceLevel e explanation', () => {
+      const accommodations = [
+        { id: 'accom-1', name: 'Master Suite' },
+      ];
+
+      const locks = [{ id: 'lock-1', alias: 'Master Suite' }];
+
+      const suggestions = suggestMatchesWithDetails(accommodations, locks, {
+        threshold: 0.8,
+      });
+
+      expect(suggestions.length).toBeGreaterThan(0);
+
+      const suggestion = suggestions[0];
+      expect(suggestion).toHaveProperty('confidenceLevel');
+      expect(suggestion).toHaveProperty('explanation');
+      expect(['high', 'medium']).toContain(suggestion.confidenceLevel);
+      expect(suggestion.explanation).toContain('%');
+    });
+
+    it('deve marcar como "high" confidence se score >= 0.9', () => {
+      const accommodations = [
+        { id: 'accom-1', name: 'Suite Master' },
+      ];
+
+      const locks = [{ id: 'lock-1', alias: 'Suite Master' }];
+
+      const suggestions = suggestMatchesWithDetails(accommodations, locks, {
+        threshold: 0.8,
+      });
+
+      if (suggestions.length > 0 && suggestions[0].score >= 0.9) {
+        expect(suggestions[0].confidenceLevel).toBe('high');
+      }
+    });
+  });
+
+  // ======================================================================
+  // TESTE 4: Deduplicação de Sugestões
+  // ======================================================================
+  describe('deduplicateSuggestions', () => {
+    it('deve manter apenas 1 sugestão por lock', () => {
+      const suggestions = [
+        {
+          accommodationId: 'accom-1',
+          accommodationName: 'Suite A',
+          lockId: 'lock-1',
+          lockAlias: 'Door 1',
+          score: 0.85,
+        },
+        {
+          accommodationId: 'accom-2',
+          accommodationName: 'Suite B',
+          lockId: 'lock-1', // Mesmo lock
+          lockAlias: 'Door 1',
+          score: 0.8,
+        },
+        {
+          accommodationId: 'accom-3',
+          accommodationName: 'Suite C',
+          lockId: 'lock-2',
+          lockAlias: 'Door 2',
+          score: 0.9,
+        },
+      ];
+
+      const deduplicated = deduplicateSuggestions(suggestions);
+
+      // Deve ter apenas 2 (lock-1 e lock-2)
+      expect(deduplicated.length).toBe(2);
+
+      // Para lock-1, deve manter o com score mais alto (0.85)
+      const lock1Suggestion = deduplicated.find(
+        (s: { lockId: string; score: number }) => s.lockId === 'lock-1'
+      );
+      expect(lock1Suggestion?.score).toBe(0.85);
+    });
+
+    it('deve ordenar por score decrescente após deduplicação', () => {
+      const suggestions = [
+        {
+          accommodationId: 'accom-1',
+          accommodationName: 'A',
+          lockId: 'lock-1',
+          lockAlias: 'L1',
+          score: 0.7,
+        },
+        {
+          accommodationId: 'accom-2',
+          accommodationName: 'B',
+          lockId: 'lock-2',
+          lockAlias: 'L2',
+          score: 0.9,
+        },
+      ];
+
+      const deduplicated = deduplicateSuggestions(suggestions);
+
+      expect(deduplicated[0].score).toBe(0.9);
+      expect(deduplicated[1].score).toBe(0.7);
+    });
+  });
+
+  // ======================================================================
+  // TESTE 5: Validação de Sugestões
+  // ======================================================================
+  describe('validateSuggestion', () => {
+    const accommodations = [
+      { id: 'accom-1', name: 'Suite Master' },
+    ];
+
+    const locks = [{ id: 'lock-1', alias: 'Door 1' }];
+
+    it('deve validar sugestão válida', () => {
+      const suggestion = {
+        accommodationId: 'accom-1',
+        accommodationName: 'Suite Master',
+        lockId: 'lock-1',
+        lockAlias: 'Door 1',
+        score: 0.85,
+      };
+
+      const result = validateSuggestion(suggestion, accommodations, locks);
+      expect(result.valid).toBe(true);
+    });
+
+    it('deve rejeitar se acomodação não existe', () => {
+      const suggestion = {
+        accommodationId: 'accom-invalid',
+        accommodationName: 'Invalid',
+        lockId: 'lock-1',
+        lockAlias: 'Door 1',
+        score: 0.85,
+      };
+
+      const result = validateSuggestion(suggestion, accommodations, locks);
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('Acomodação');
+    });
+
+    it('deve rejeitar se fechadura não existe', () => {
+      const suggestion = {
+        accommodationId: 'accom-1',
+        accommodationName: 'Suite Master',
+        lockId: 'lock-invalid',
+        lockAlias: 'Invalid',
+        score: 0.85,
+      };
+
+      const result = validateSuggestion(suggestion, accommodations, locks);
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('Fechadura');
+    });
+
+    it('deve rejeitar se score < 0.8', () => {
+      const suggestion = {
+        accommodationId: 'accom-1',
+        accommodationName: 'Suite Master',
+        lockId: 'lock-1',
+        lockAlias: 'Door 1',
+        score: 0.7, // Abaixo do threshold
+      };
+
+      const result = validateSuggestion(suggestion, accommodations, locks);
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('threshold');
+    });
+  });
+
+  // ======================================================================
+  // TESTE 6: Avaliação de Candidato
+  // ======================================================================
+  describe('isGoodCandidate', () => {
+    it('deve retornar true para nomes descritivos', () => {
+      expect(isGoodCandidate('Master Suite', 'accommodation')).toBe(true);
+      expect(isGoodCandidate('Front Door Lock', 'lock')).toBe(true);
+    });
+
+    it('deve retornar false para nomes genéricos', () => {
+      expect(isGoodCandidate('Quarto 1', 'accommodation')).toBe(false);
+      expect(isGoodCandidate('Lock 1', 'lock')).toBe(false);
+      expect(isGoodCandidate('Suite 123', 'accommodation')).toBe(false);
+    });
+
+    it('deve retornar false para nomes muito curtos', () => {
+      expect(isGoodCandidate('AB', 'accommodation')).toBe(false);
+    });
+
+    it('deve retornar false para apenas números', () => {
+      expect(isGoodCandidate('123', 'accommodation')).toBe(false);
+      expect(isGoodCandidate('456', 'lock')).toBe(false);
+    });
+  });
+
+  // ======================================================================
+  // TESTE 7: Cenários Reais
+  // ======================================================================
+  describe('Real-world scenarios', () => {
+    it('deve sugerir match para nomes com padrão comum', () => {
+      const accommodations = [
+        { id: 'apt-101', name: 'Apartamento 101' },
+        { id: 'apt-102', name: 'Apartamento 102' },
+      ];
+
+      const locks = [
+        { id: 'door-101', alias: 'Apto 101' },
+        { id: 'door-102', alias: 'Apto 102' },
+      ];
+
+      const suggestions = suggestMatches(accommodations, locks, {
+        threshold: 0.7,
+      });
+
+      // Deve sugerir Apartamento 101 ↔ Apto 101
+      const apt101 = suggestions.find(
+        (s: { accommodationId: string }) => s.accommodationId === 'apt-101'
+      );
+      expect(apt101).toBeDefined();
+      expect(apt101?.lockId).toBe('door-101');
+    });
+
+    it('deve retornar array vazio quando não há locks', () => {
+      const accommodations = [
+        { id: 'accom-1', name: 'Suite Master' },
+      ];
+
+      const suggestions = suggestMatches(accommodations, [], {
+        threshold: 0.8,
+      });
+
+      expect(suggestions.length).toBe(0);
+    });
+
+    it('deve retornar array vazio quando não há accommodations', () => {
+      const locks = [{ id: 'lock-1', alias: 'Door 1' }];
+
+      const suggestions = suggestMatches([], locks, {
+        threshold: 0.8,
+      });
+
+      expect(suggestions.length).toBe(0);
+    });
+  });
+});

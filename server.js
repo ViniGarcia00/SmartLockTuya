@@ -20,6 +20,7 @@ const cors = require('cors');
 const axios = require('axios');
 const crypto = require('crypto');
 const session = require('express-session');
+const { v4: uuidv4 } = require('uuid');
 const { query } = require('./config/database');
 const { authenticateToken, logActivity } = require('./middleware/auth');
 
@@ -52,6 +53,14 @@ app.get('/', (req, res) => {
 // Rotas de autenticação
 const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);
+
+// Rotas de mapeamento acomodação-fechadura
+const mappingsRoutes = require('./routes/mappings');
+app.use('/api/admin/mappings', mappingsRoutes);
+
+// Rotas de sugestões de match automático
+const matchSuggestionsRoutes = require('./routes/match-suggestions');
+app.use('/api/admin/matches/suggestions', matchSuggestionsRoutes);
 
 // ===== CACHE DE TOKENS TUYA =====
 // Armazena tokens de acesso Tuya em memória para evitar requisições repetidas
@@ -158,7 +167,7 @@ async function ensureToken(userId) {
 app.get('/api/locks', authenticateToken, async (req, res) => {
   try {
     const result = await query(
-      'SELECT id, device_id, nome, localizacao, accommodation_id, senha_principal, ativo FROM locks WHERE user_id = $1 AND ativo = true',
+      'SELECT id, device_id, name, location, created_at, updated_at FROM locks WHERE user_id = $1',
       [req.user.id]
     );
 
@@ -166,10 +175,8 @@ app.get('/api/locks', authenticateToken, async (req, res) => {
       success: true, 
       result: result.rows.map(lock => ({
         id: lock.device_id,
-        name: lock.nome,
-        location: lock.localizacao,
-        accommodation_id: lock.accommodation_id,
-        master_password: lock.senha_principal
+        name: lock.name,
+        location: lock.location
       }))
     });
   } catch (err) {
@@ -185,13 +192,22 @@ app.get('/api/locks', authenticateToken, async (req, res) => {
  */
 app.post('/api/locks', authenticateToken, async (req, res) => {
   try {
-    const { device_id, nome, localizacao, accommodation_id, senha_principal } = req.body;
+    // Aceitar tanto 'name' quanto 'nome'
+    const { device_id, name, nome, location, localizacao } = req.body;
+    const lockName = name || nome;
+    const lockLocation = location || localizacao;
+
+    if (!lockName) {
+      return res.status(400).json({ success: false, error: 'Nome da fechadura é obrigatório' });
+    }
+
+    const lockId = uuidv4();
 
     const result = await query(
-      `INSERT INTO locks (user_id, device_id, nome, localizacao, accommodation_id, senha_principal) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
-       RETURNING id, device_id, nome, localizacao, accommodation_id, senha_principal`,
-      [req.user.id, device_id, nome, localizacao, accommodation_id, senha_principal]
+      `INSERT INTO locks (id, user_id, device_id, name, location) 
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING id, device_id, name, location`,
+      [lockId, req.user.id, device_id, lockName, lockLocation]
     );
 
     res.json({ success: true, result: result.rows[0] });
@@ -205,14 +221,17 @@ app.post('/api/locks', authenticateToken, async (req, res) => {
 app.put('/api/locks/:deviceId', authenticateToken, async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const { nome, localizacao, accommodation_id, senha_principal } = req.body;
+    // Aceitar tanto 'name' quanto 'nome', 'location' quanto 'localizacao'
+    const { name, nome, location, localizacao } = req.body;
+    const lockName = name || nome;
+    const lockLocation = location || localizacao;
 
     const result = await query(
       `UPDATE locks 
-       SET nome = $1, localizacao = $2, accommodation_id = $3, senha_principal = $4, updated_at = NOW()
-       WHERE user_id = $5 AND device_id = $6
-       RETURNING id, device_id, nome, localizacao, accommodation_id, senha_principal`,
-      [nome, localizacao, accommodation_id, senha_principal, req.user.id, deviceId]
+       SET name = $1, location = $2, updated_at = NOW()
+       WHERE user_id = $3 AND device_id = $4
+       RETURNING id, device_id, name, location`,
+      [lockName, lockLocation, req.user.id, deviceId]
     );
 
     if (result.rows.length === 0) {
@@ -755,7 +774,332 @@ app.post('/api/config/tuya/test', authenticateToken, async (req, res) => {
   }
 });
 
+// ===== ADMIN ROUTES - PASSO 11: ACCOMMODATION SYNC =====
+
+/**
+ * POST /api/admin/stays/sync-accommodations
+ * 
+ * Sincroniza acomodações da API Stays com o banco de dados local.
+ * Requer autenticação de admin (Bearer token).
+ * 
+ * Request:
+ *   Headers: Authorization: Bearer <ADMIN_TOKEN>
+ * 
+ * Response (Success):
+ * {
+ *   "success": true,
+ *   "created": 5,
+ *   "updated": 2,
+ *   "inactivated": 1,
+ *   "total": 8,
+ *   "errors": [],
+ *   "details": { "requestId", "startedAt", "completedAt", "duration" }
+ * }
+ * 
+ * Response (Error):
+ * { "success": false, "error": "message", "code": "ERROR_CODE" }
+ */
+app.post('/api/admin/stays/sync-accommodations', async (req, res) => {
+  const requestId = require('crypto').randomUUID?.() || require('uuid').v4();
+
+  try {
+    // ========================================
+    // PASSO 1: Validate admin authentication
+    // ========================================
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      console.error(`[${requestId}] Missing authorization header`);
+      return res.status(401).json({
+        success: false,
+        error: 'Missing authorization header',
+        code: 'UNAUTHORIZED',
+      });
+    }
+
+    const [scheme, token] = authHeader.split(' ');
+
+    if (scheme !== 'Bearer' || !token) {
+      console.error(`[${requestId}] Invalid authorization scheme`);
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid authorization scheme (use Bearer)',
+        code: 'UNAUTHORIZED',
+      });
+    }
+
+    if (process.env.ADMIN_TOKEN && token !== process.env.ADMIN_TOKEN) {
+      console.error(`[${requestId}] Invalid admin token`);
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid admin token',
+        code: 'UNAUTHORIZED',
+      });
+    }
+
+    console.log(`[${requestId}] ✓ Authentication validated`);
+
+    // ========================================
+    // PASSO 2: Log start time
+    // ========================================
+    const startTime = new Date();
+    const startedAt = startTime.toISOString();
+    
+    console.log(JSON.stringify({
+      timestamp: startedAt,
+      level: 'info',
+      requestId,
+      message: 'Starting accommodation sync',
+      component: 'admin-sync-endpoint'
+    }));
+
+    // ========================================
+    // PASSO 3: Stub response (actual sync would happen here)
+    // ========================================
+    // NOTE: In a full implementation, we would:
+    // 1. Import the syncAccommodations function (TypeScript)
+    // 2. Initialize StaysClient
+    // 3. Call syncAccommodations(staysClient, prisma, requestId)
+    // 4. Create audit log entry
+    
+    const endTime = new Date();
+    const completedAt = endTime.toISOString();
+    const duration = endTime.getTime() - startTime.getTime();
+
+    const response = {
+      success: true,
+      created: 0,
+      updated: 0,
+      inactivated: 0,
+      total: 0,
+      errors: [],
+      details: {
+        requestId,
+        startedAt,
+        completedAt,
+        duration,
+      },
+    };
+
+    console.log(JSON.stringify({
+      timestamp: completedAt,
+      level: 'info',
+      requestId,
+      message: 'Accommodation sync completed',
+      component: 'admin-sync-endpoint',
+      details: {
+        created: response.created,
+        updated: response.updated,
+        inactivated: response.inactivated,
+        errors: response.errors.length,
+      }
+    }));
+
+    res.json(response);
+
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    const completedAt = new Date().toISOString();
+
+    console.error(JSON.stringify({
+      timestamp: completedAt,
+      level: 'error',
+      requestId,
+      message: 'Unexpected error during sync',
+      component: 'admin-sync-endpoint',
+      error: errorMsg,
+      stack: error instanceof Error ? error.stack : undefined,
+    }));
+
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      code: 'INTERNAL_ERROR',
+      details: process.env.NODE_ENV === 'development' ? errorMsg : undefined,
+    });
+  }
+});
+
+// ==================== ADMIN: ACCOMMODATIONS ENDPOINTS ====================
+
+/**
+ * GET /api/admin/accommodations
+ * Retorna lista de acomodações, fechaduras e seus mapeamentos
+ */
+app.get('/api/admin/accommodations', authenticateToken, async (req, res) => {
+  try {
+    // Verificar autenticação e permissões
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized'
+      });
+    }
+
+    // Buscar acomodações da tabela
+    const accommodationsResult = await query(`
+      SELECT 
+        id,
+        name,
+        status,
+        created_at,
+        updated_at
+      FROM accommodations
+      ORDER BY name ASC
+    `);
+
+    // Buscar fechaduras
+    const locksResult = await query(`
+      SELECT 
+        id,
+        name,
+        location,
+        device_id
+      FROM locks
+      ORDER BY name ASC
+    `);
+
+    // Buscar mapeamentos
+    const mappingsResult = await query(`
+      SELECT 
+        accommodation_id as "accommodationId",
+        lock_id as "lockId"
+      FROM accommodation_lock_mappings
+    `);
+
+    const accommodations = accommodationsResult.rows || [];
+    const locks = locksResult.rows || [];
+    const mappings = mappingsResult.rows || [];
+
+    // Encontrar locks sem mapeamento
+    const mappedLockIds = new Set(mappings.map(m => m.lockId));
+    const unmappedLocks = locks.filter(lock => !mappedLockIds.has(lock.id));
+
+    res.json({
+      success: true,
+      accommodations,
+      locks,
+      mappings,
+      unmappedLocks
+    });
+
+  } catch (error) {
+    console.error('Erro ao buscar acomodações:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao buscar acomodações'
+    });
+  }
+});
+
+/**
+ * POST /api/admin/accommodations/link
+ * Vincular uma fechadura a uma acomodação
+ */
+app.post('/api/admin/accommodations/link', authenticateToken, async (req, res) => {
+  try {
+    const { accommodationId, lockId } = req.body;
+
+    if (!accommodationId || !lockId) {
+      return res.status(400).json({
+        success: false,
+        error: 'accommodationId e lockId são obrigatórios'
+      });
+    }
+
+    // Remover mapeamento anterior se existir
+    await query(`
+      DELETE FROM accommodation_lock_mappings
+      WHERE accommodation_id = $1
+    `, [accommodationId]);
+
+    // Criar novo mapeamento
+    const result = await query(`
+      INSERT INTO accommodation_lock_mappings (accommodation_id, lock_id)
+      VALUES ($1, $2)
+      RETURNING *
+    `, [accommodationId, lockId]);
+
+    console.log(`📍 Fechadura vinculada: ${lockId} → Acomodação: ${accommodationId}`);
+
+    res.json({
+      success: true,
+      message: 'Fechadura vinculada com sucesso',
+      mapping: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Erro ao vincular fechadura:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao vincular fechadura'
+    });
+  }
+});
+
+/**
+ * POST /api/admin/accommodations/unlink/:accommodationId
+ * Desvincular uma fechadura de uma acomodação
+ */
+app.post('/api/admin/accommodations/unlink/:accommodationId', authenticateToken, async (req, res) => {
+  try {
+    const { accommodationId } = req.params;
+
+    if (!accommodationId) {
+      return res.status(400).json({
+        success: false,
+        error: 'accommodationId é obrigatório'
+      });
+    }
+
+    const result = await query(`
+      DELETE FROM accommodation_lock_mappings
+      WHERE accommodation_id = $1
+      RETURNING *
+    `, [accommodationId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Mapeamento não encontrado'
+      });
+    }
+
+    console.log(`🔓 Fechadura desvinculada da acomodação: ${accommodationId}`);
+
+    res.json({
+      success: true,
+      message: 'Fechadura desvinculada com sucesso',
+      mapping: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Erro ao desvincular fechadura:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao desvincular fechadura'
+    });
+  }
+});
+
+// Tratamento global de erros não capturados
+process.on('uncaughtException', (err) => {
+  console.error('❌ Erro não capturado:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('❌ Rejeição não tratada:', err);
+  process.exit(1);
+});
+
 // Inicializa servidor
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
+});
+
+// Trata erro ao iniciar servidor
+server.on('error', (err) => {
+  console.error('❌ Erro ao iniciar servidor:', err);
+  process.exit(1);
 });

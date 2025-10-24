@@ -89,4 +89,12 @@ export class LockProviderFactory {
   static reset(): void {
     this.instance = null;
   }
+
+  /**
+   * Define uma instância customizada do provider
+   * Útil para testes com mocks
+   */
+  static setProvider(provider: ILockProvider): void {
+    this.instance = provider;
+  }
 }

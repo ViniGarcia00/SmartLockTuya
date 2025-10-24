@@ -18,6 +18,8 @@
 
 import { Job } from 'bullmq';
 import { PrismaClient } from '@prisma/client';
+import { LockProviderFactory } from '../lib/lock-provider-factory';
+import { v4 as uuidv4 } from 'uuid';
 
 // Tipos para o job
 export interface RevokePinJobData {
@@ -46,11 +48,14 @@ export async function processRevokePin(
   job: Job<RevokePinJobData>
 ): Promise<RevokePinJobResult> {
   const prisma = new PrismaClient();
+  const requestId = uuidv4();
   
   try {
     const { reservationId } = job.data;
     
-    console.log(`[Revoke PIN] Iniciando revogação para reserva ${reservationId}`);
+    console.log(
+      `[Revoke PIN] [${requestId}] Iniciando revogação para reserva ${reservationId}`
+    );
     
     // =====================================================================
     // PASSO 1: Validar dados do job
@@ -78,15 +83,18 @@ export async function processRevokePin(
         reservationId: reservationId,
         status: 'ACTIVE',
       },
+      include: {
+        lock: true, // Incluir dados da lock para access lock provider
+      },
     });
     
     console.log(
-      `[Revoke PIN] Encontradas ${activeCredentials.length} credenciais ativas`
+      `[Revoke PIN] [${requestId}] Encontradas ${activeCredentials.length} credenciais ativas`
     );
     
     if (activeCredentials.length === 0) {
       console.log(
-        `[Revoke PIN] ℹ️  Nenhuma credencial ativa para revogar em ${reservationId}`
+        `[Revoke PIN] [${requestId}] ℹ️  Nenhuma credencial ativa para revogar`
       );
       
       return {
@@ -97,26 +105,65 @@ export async function processRevokePin(
     }
     
     // =====================================================================
-    // PASSO 4: Revogar todas as credentials
+    // PASSO 4: Criar instância do provider e revogar cada credential
     // =====================================================================
+    const lockProvider = LockProviderFactory.create();
     const now = new Date();
     const revokedIds: string[] = [];
+    const failedCredentials: Array<{ credentialId: string; error: string }> =
+      [];
     
     for (const credential of activeCredentials) {
-      await prisma.credential.update({
-        where: { id: credential.id },
-        data: {
-          status: 'REVOKED',
-          revokedAt: now,
-          revokedBy: 'system-pin-revoke',
-        },
-      });
-      
-      revokedIds.push(credential.id);
-      
-      console.log(
-        `[Revoke PIN] ✅ Credencial revogada: ${credential.id} (Lock: ${credential.lockId})`
-      );
+      try {
+        console.log(
+          `[Revoke PIN] [${requestId}] Revogando credential ${credential.id}...`
+        );
+        
+        // Chamar lock provider para revogar PIN no dispositivo
+        const providerResult = await lockProvider.revokePin(
+          credential.lockId,
+          credential.providerRef || credential.pin // Usar providerRef ou PIN como fallback
+        );
+        
+        console.log(
+          `[Revoke PIN] [${requestId}] Lock provider retornou:`,
+          providerResult
+        );
+        
+        // Atualizar status no banco de dados
+        await prisma.credential.update({
+          where: { id: credential.id },
+          data: {
+            status: 'REVOKED',
+            revokedAt: now,
+            revokedBy: 'system-pin-revoke',
+          },
+        });
+        
+        revokedIds.push(credential.id);
+        
+        console.log(
+          `[Revoke PIN] [${requestId}] ✅ Credential revogada: ${credential.id}`
+        );
+        
+      } catch (credentialError) {
+        const errorMsg =
+          credentialError instanceof Error
+            ? credentialError.message
+            : String(credentialError);
+        
+        console.error(
+          `[Revoke PIN] [${requestId}] ❌ Erro ao revogar credential ${credential.id}:`,
+          errorMsg
+        );
+        
+        failedCredentials.push({
+          credentialId: credential.id,
+          error: errorMsg,
+        });
+        
+        // Continuar processando outras credentials (não falhar tudo por uma)
+      }
     }
     
     // =====================================================================
@@ -131,19 +178,33 @@ export async function processRevokePin(
         details: {
           reservationId: reservationId,
           revokedCount: revokedIds.length,
+          failedCount: failedCredentials.length,
           credentialIds: revokedIds,
+          failedCredentials: failedCredentials,
           revokedAt: now.toISOString(),
+          requestId: requestId,
         },
       },
     });
     
-    console.log(`[Revoke PIN] ✅ PIN revogado para reserva ${reservationId}`);
+    console.log(`[Revoke PIN] [${requestId}] ✅ PIN revogado para reserva`);
     console.log(`  Total revogados: ${revokedIds.length}`);
-    console.log(`  Credential IDs: ${revokedIds.join(', ')}`);
+    console.log(`  Total falhados: ${failedCredentials.length}`);
     
     // =====================================================================
     // PASSO 6: Retornar resultado
     // =====================================================================
+    if (failedCredentials.length > 0) {
+      const error = `Revoked ${revokedIds.length} credentials, but ${failedCredentials.length} failed`;
+      
+      return {
+        success: false,
+        revokedCredentials: revokedIds.length,
+        credentialIds: revokedIds,
+        error: error,
+      };
+    }
+    
     return {
       success: true,
       revokedCredentials: revokedIds.length,
@@ -151,7 +212,13 @@ export async function processRevokePin(
     };
     
   } catch (error) {
-    console.error('[Revoke PIN] ❌ Erro ao revogar PIN:', error);
+    const errorMsg =
+      error instanceof Error ? error.message : String(error);
+    
+    console.error(
+      `[Revoke PIN] [${requestId}] ❌ Erro ao revogar PIN:`,
+      errorMsg
+    );
     
     // Log de erro em auditoria
     try {
@@ -162,18 +229,23 @@ export async function processRevokePin(
           entityId: job.data.reservationId,
           userId: 'system-pin-revoke',
           details: {
-            error: error instanceof Error ? error.message : String(error),
+            error: errorMsg,
             jobId: job.id,
+            requestId: requestId,
+            stack: error instanceof Error ? error.stack : undefined,
           },
         },
       });
     } catch (auditError) {
-      console.error('[Revoke PIN] Erro ao criar audit log:', auditError);
+      console.error(
+        `[Revoke PIN] [${requestId}] Erro ao criar audit log:`,
+        auditError
+      );
     }
     
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMsg,
     };
     
   } finally {

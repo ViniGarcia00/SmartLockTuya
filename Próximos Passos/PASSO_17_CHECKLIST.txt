@@ -1,0 +1,501 @@
+# ✅ PASSO 17 - CHECKLIST DE TESTES DE INTEGRAÇÃO
+
+**Data de Criação:** 2024  
+**Status:** 80% Completo (Arquivos criados, pronto para execução)  
+**Próximo:** Executar `npm run test:integration`
+
+---
+
+## 📦 ARQUIVOS CRIADOS
+
+### Testes de Integração
+
+- [x] `src/__tests__/integration/full-flow.test.ts` (450+ linhas)
+  - [x] Cenário 1: Criação de Reserva
+  - [x] Cenário 2: Atualização de Reserva
+  - [x] Cenário 3: Cancelamento
+  - [x] Cenário 4: Reconciliação
+  - [x] Teste ACID
+
+- [x] `src/__tests__/integration/webhook-flow.test.ts` (320+ linhas)
+  - [x] Test 1: POST Webhook (status 200)
+  - [x] Test 2: Webhook Armazenado
+  - [x] Test 3: Reservation Criado
+  - [x] Test 4: EventId Retornado
+  - [x] Test 5: Webhook Inválido
+  - [x] Test 6: Idempotência
+
+- [x] `src/__tests__/integration/mapping-flow.test.ts` (280+ linhas)
+  - [x] Test 1: Criar Mapping
+  - [x] Test 2: Validar 1:1
+  - [x] Test 3: Desmapar
+  - [x] Test 4: Remapar
+  - [x] Test 5: Cascade Delete
+  - [x] Test 6: Query Mappings
+
+- [x] `src/__tests__/integration/pin-generation-flow.test.ts` (390+ linhas)
+  - [x] Test 1: Gerar PIN
+  - [x] Test 2: PIN Seguro
+  - [x] Test 3: Rotação de PIN
+  - [x] Test 4: Expiração
+  - [x] Test 5: Revogar
+  - [x] Test 6: Query por Reservation
+  - [x] Test 7: Generator Consistency
+
+### Documentação
+
+- [x] `src/__tests__/integration/README.md` (Guia de testes)
+- [x] `Próximos Passos/PASSO_17_TESTES.md` (Documentação completa)
+- [x] `Próximos Passos/PASSO_17_CHECKLIST.txt` (Este arquivo)
+
+### Configuração
+
+- [x] `jest.setup.js` (Inicialização de ambiente)
+- [x] `jest.config.js` (Verificado e otimizado)
+- [x] `package.json` - npm scripts adicionados:
+  - [x] `"test:integration"`: `jest --testPathPattern=__tests__/integration --detectOpenHandles`
+  - [x] `"test:integration:watch"`: `jest --testPathPattern=__tests__/integration --watch`
+
+---
+
+## 🔧 CONFIGURAÇÃO NECESSÁRIA
+
+### Banco de Dados PostgreSQL
+
+- [ ] PostgreSQL instalado e rodando
+- [ ] Banco de testes criado:
+  ```sql
+  CREATE DATABASE tuya_locks_test;
+  ```
+- [ ] Migrations executadas:
+  ```bash
+  npx prisma migrate dev
+  ```
+- [ ] Variável `DATABASE_URL` configurada:
+  ```
+  DATABASE_URL=postgresql://user:pass@localhost:5432/tuya_locks_test
+  ```
+
+### Redis
+
+- [ ] Redis instalado e rodando (porta 6379)
+- [ ] Verificar conectividade:
+  ```bash
+  redis-cli ping  # Deve retornar PONG
+  ```
+- [ ] Variável `REDIS_URL` configurada:
+  ```
+  REDIS_URL=redis://localhost:6379/1
+  ```
+
+### Node.js
+
+- [ ] Node.js v16+ instalado
+- [ ] npm dependencies instaladas:
+  ```bash
+  npm install
+  ```
+
+### Variáveis de Ambiente
+
+Adicionar em `.env` ou `jest.setup.js`:
+```
+NODE_ENV=test
+DATABASE_URL=postgresql://localhost:5432/tuya_locks_test
+REDIS_URL=redis://localhost:6379/1
+JWT_SECRET=test-secret-key
+```
+
+---
+
+## 🚀 EXECUÇÃO DOS TESTES
+
+### Fase 1: Verificação (PRÉ-REQUISITOS)
+
+```bash
+# ✅ Verificar PostgreSQL
+psql -U postgres -d tuya_locks_test -c "SELECT 1"
+# Esperado: (1 row)
+
+# ✅ Verificar Redis
+redis-cli ping
+# Esperado: PONG
+
+# ✅ Verificar Node.js
+node --version
+# Esperado: v16.x.x ou superior
+
+# ✅ Verificar dependências
+npm list jest typescript @prisma/client
+# Esperado: Todas instaladas
+```
+
+### Fase 2: Execução dos Testes
+
+```bash
+# 1️⃣ Executar todos os testes de integração
+npm run test:integration
+
+# Esperado Output:
+# PASS  src/__tests__/integration/full-flow.test.ts
+# PASS  src/__tests__/integration/webhook-flow.test.ts
+# PASS  src/__tests__/integration/mapping-flow.test.ts
+# PASS  src/__tests__/integration/pin-generation-flow.test.ts
+#
+# Test Suites: 4 passed, 4 total
+# Tests:       23 passed, 23 total
+# Time:        60-90 segundos
+```
+
+### Fase 3: Modo Watch (Development)
+
+```bash
+# 2️⃣ Rodar em modo watch (útil durante desenvolvimento)
+npm run test:integration:watch
+
+# Agora edite arquivos e veja testes re-executando
+```
+
+### Fase 4: Coverage Report
+
+```bash
+# 3️⃣ Gerar relatório de cobertura
+npm run test:coverage -- --testPathPattern=__tests__/integration
+
+# Gera:
+# - Terminal output com percentages
+# - Pasta coverage/
+#   - coverage/lcov-report/index.html (abrir no browser)
+```
+
+---
+
+## 📊 TESTES ESPERADOS
+
+### Summary
+
+| Suíte | Testes | Status |
+|-------|--------|--------|
+| full-flow.test.ts | 5 | ⏳ Esperando execução |
+| webhook-flow.test.ts | 6 | ⏳ Esperando execução |
+| mapping-flow.test.ts | 6 | ⏳ Esperando execução |
+| pin-generation-flow.test.ts | 7 | ⏳ Esperando execução |
+| **TOTAL** | **23** | **⏳ Esperando execução** |
+
+### Detalhamento
+
+#### Full-Flow Tests (5 testes)
+- [ ] Cenário 1: Criação de Reserva ⏳
+- [ ] Cenário 2: Atualização de Reserva ⏳
+- [ ] Cenário 3: Cancelamento ⏳
+- [ ] Cenário 4: Reconciliação ⏳
+- [ ] Teste ACID ⏳
+
+#### Webhook-Flow Tests (6 testes)
+- [ ] Test 1: POST Webhook ⏳
+- [ ] Test 2: Webhook Armazenado ⏳
+- [ ] Test 3: Reservation Criado ⏳
+- [ ] Test 4: EventId Retornado ⏳
+- [ ] Test 5: Webhook Inválido ⏳
+- [ ] Test 6: Idempotência ⏳
+
+#### Mapping-Flow Tests (6 testes)
+- [ ] Test 1: Criar Mapping ⏳
+- [ ] Test 2: Validar 1:1 ⏳
+- [ ] Test 3: Desmapar ⏳
+- [ ] Test 4: Remapar ⏳
+- [ ] Test 5: Cascade Delete ⏳
+- [ ] Test 6: Query Mappings ⏳
+
+#### PIN Generation Tests (7 testes)
+- [ ] Test 1: Gerar PIN ⏳
+- [ ] Test 2: PIN Seguro ⏳
+- [ ] Test 3: Rotação de PIN ⏳
+- [ ] Test 4: Expiração ⏳
+- [ ] Test 5: Revogar ⏳
+- [ ] Test 6: Query por Reservation ⏳
+- [ ] Test 7: Generator Consistency ⏳
+
+---
+
+## 🎯 RESULTADOS ESPERADOS
+
+### Coverage Esperado
+
+```
+Statements   : 85%+
+Branches     : 80%+
+Functions    : 85%+
+Lines        : 85%+
+```
+
+### Tempo de Execução
+
+- Mínimo: 30 segundos
+- Esperado: 60-90 segundos
+- Máximo: 120 segundos
+
+### Estrutura de Output
+
+```
+PASS  src/__tests__/integration/full-flow.test.ts (8.234 s)
+  Full-Flow Integration Tests
+    ✓ Scenario 1: Creation of Reservation (1200 ms)
+    ✓ Scenario 2: Update of Reservation (800 ms)
+    ✓ Scenario 3: Cancellation (600 ms)
+    ✓ Scenario 4: Reconciliation (1500 ms)
+    ✓ ACID Consistency Test (800 ms)
+
+PASS  src/__tests__/integration/webhook-flow.test.ts (5.120 s)
+  Webhook-Flow Integration Tests
+    ✓ Test 1: POST Webhook returns 200 (300 ms)
+    ✓ Test 2: Webhook stored in database (400 ms)
+    ✓ Test 3: Reservation created from webhook (500 ms)
+    ✓ Test 4: EventId returned (200 ms)
+    ✓ Test 5: Invalid webhook rejected (250 ms)
+    ✓ Test 6: Webhook idempotency (600 ms)
+
+PASS  src/__tests__/integration/mapping-flow.test.ts (4.580 s)
+  Mapping-Flow Integration Tests
+    ✓ Test 1: Create mapping (300 ms)
+    ✓ Test 2: Validate 1:1 constraint (350 ms)
+    ✓ Test 3: Unmap (300 ms)
+    ✓ Test 4: Remap (400 ms)
+    ✓ Test 5: Cascade delete (450 ms)
+    ✓ Test 6: Query all mappings (350 ms)
+
+PASS  src/__tests__/integration/pin-generation-flow.test.ts (6.890 s)
+  PIN Generation Integration Tests
+    ✓ Test 1: Generate PIN and create credential (600 ms)
+    ✓ Test 2: PIN is secure (hash only) (400 ms)
+    ✓ Test 3: PIN rotation (800 ms)
+    ✓ Test 4: PIN expiration handling (500 ms)
+    ✓ Test 5: PIN revocation on checkout (700 ms)
+    ✓ Test 6: Query credentials by reservation (400 ms)
+    ✓ Test 7: PIN generator consistency (800 ms)
+
+Test Suites: 4 passed, 4 total
+Tests:       23 passed, 23 total
+Snapshots:   0 total
+Time:        23.824 s
+```
+
+---
+
+## 🐛 TROUBLESHOOTING
+
+### Erro 1: "ECONNREFUSED - Cannot connect to PostgreSQL"
+
+**Sintoma:**
+```
+Error: connect ECONNREFUSED 127.0.0.1:5432
+```
+
+**Solução:**
+```bash
+# 1. Verificar se PostgreSQL está rodando
+psql -U postgres -d tuya_locks_test -c "SELECT 1"
+
+# 2. Se não encontrar, iniciar
+sudo systemctl start postgresql  # Linux
+brew services start postgresql  # macOS
+net start PostgreSQL14          # Windows (PowerShell Admin)
+
+# 3. Verificar DATABASE_URL no .env
+echo $DATABASE_URL
+# Deve ser: postgresql://user:pass@localhost:5432/tuya_locks_test
+```
+
+### Erro 2: "ECONNREFUSED - Cannot connect to Redis"
+
+**Sintoma:**
+```
+Error: connect ECONNREFUSED 127.0.0.1:6379
+```
+
+**Solução:**
+```bash
+# 1. Verificar se Redis está rodando
+redis-cli ping
+
+# 2. Se não encontrar, iniciar
+sudo systemctl start redis  # Linux
+brew services start redis   # macOS
+redis-server               # Manual
+
+# 3. Verificar REDIS_URL no .env
+echo $REDIS_URL
+# Deve ser: redis://localhost:6379/1
+```
+
+### Erro 3: "relation 'Accommodation' does not exist"
+
+**Sintoma:**
+```
+PrismaClientKnownRequestError: Invalid `db.accommodation.create()`
+relation 'Accommodation' does not exist
+```
+
+**Solução:**
+```bash
+# 1. Executar migrations
+npx prisma migrate dev
+
+# 2. Ou resetar tudo (limpa dados!)
+npx prisma migrate reset
+
+# 3. Verificar schema
+npx prisma studio
+```
+
+### Erro 4: "Test timeout - test did not complete within 30000ms"
+
+**Sintoma:**
+```
+Jest did not exit one second after the test run has completed.
+```
+
+**Solução:**
+```bash
+# 1. Aumentar timeout no jest.setup.js
+jest.setTimeout(60000)  // Aumentar para 60 segundos
+
+# 2. Ou especificar por test
+describe('Full-Flow', () => {
+  jest.setTimeout(45000);
+  test('...', () => { ... });
+});
+
+# 3. Verificar se DB está lenta
+# - Checar índices
+# - Checar queries lentas
+# - Aumentar RAM de DB
+```
+
+### Erro 5: "Cannot find module '@/types'"
+
+**Sintoma:**
+```
+Cannot find module '@/types'
+```
+
+**Solução:**
+```bash
+# 1. Verificar tsconfig.json path alias
+# Deve ter:
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
+}
+
+# 2. Ou usar caminhos relativos
+import { Reservation } from '../../../src/types'
+```
+
+---
+
+## ✅ VALIDAÇÃO FINAL
+
+Checklist de validação antes de considerar PASSO 17 completo:
+
+### Código
+- [x] 4 arquivos de teste criados
+- [x] 1,440+ linhas de código de teste
+- [x] 23 cenários de teste
+- [x] Todos erros TypeScript corrigidos
+- [x] MockLockProvider implementado
+- [x] Setup/Teardown configurado
+
+### Configuração
+- [x] npm scripts adicionados
+- [x] jest.setup.js criado
+- [x] jest.config.js verificado
+- [x] Variáveis de ambiente definidas
+
+### Documentação
+- [x] README.md de referência criado
+- [x] PASSO_17_TESTES.md completo
+- [x] PASSO_17_CHECKLIST.txt (este arquivo)
+
+### Próximo (FASE 2)
+- [ ] Executar `npm run test:integration`
+- [ ] Todos 23 testes passando
+- [ ] Coverage report gerado (85%+)
+- [ ] Documentar resultados
+
+---
+
+## 📈 PRÓXIMAS FASES
+
+### FASE 2: Execução e Validação (Próxima)
+1. Executar `npm run test:integration`
+2. Debugar e corrigir falhas
+3. Gerar coverage report
+4. Documentar resultados
+
+### FASE 3: E2E Tests (PASSO 18?)
+1. Testcafé ou Cypress para UI
+2. Testar fluxos completos do usuário
+3. Validar múltiplos navegadores
+
+### FASE 4: Performance Tests (PASSO 19?)
+1. k6 ou Artillery para load testing
+2. Stress testing
+3. Memory leak detection
+
+---
+
+## 📞 REFERÊNCIA RÁPIDA
+
+### Rodar Testes
+```bash
+npm run test:integration              # Todos
+npm test full-flow.test.ts           # Específico
+npm run test:integration:watch       # Watch mode
+npm run test:coverage -- --testPathPattern=__tests__/integration
+```
+
+### Ambiente
+```bash
+npm install                           # Instalar deps
+npx prisma migrate dev               # Executar migrations
+redis-cli ping                       # Verificar Redis
+psql -U postgres                     # Conectar PostgreSQL
+```
+
+### Logs
+```bash
+npm test -- --verbose               # Com detalhes
+npm test -- --bail full-flow        # Parar no primeiro erro
+npm test -- --listTests             # Listar testes
+```
+
+---
+
+## 🎉 STATUS FINAL
+
+**PASSO 17 - Testes de Integração Completos**
+
+✅ **Status:** 80% Completo (Arquivos criados, pronto para execução)
+
+**Criado:**
+- ✅ 4 arquivos de teste (1,440+ linhas)
+- ✅ 23 cenários de teste
+- ✅ Documentação completa
+- ✅ npm scripts
+- ✅ Jest configuration
+
+**Próximo:**
+- ⏳ Executar testes
+- ⏳ Validar resultados
+- ⏳ Gerar coverage
+- ⏳ Documentar
+
+---
+
+**Última atualização:** 2024  
+**Versão:** PASSO 17 - 80% Completo  
+**Responsável:** GitHub Copilot

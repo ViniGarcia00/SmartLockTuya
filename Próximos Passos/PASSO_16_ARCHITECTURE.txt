@@ -1,0 +1,490 @@
+# PASSO 16 - VISUAL ARCHITECTURE
+
+## 🏗️ System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          EXTERNAL SYSTEMS                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────┐ │
+│  │   STAYS API          │  │   REDIS              │  │   PostgreSQL │ │
+│  │  (Source of Truth)   │  │  (Queue Storage)     │  │   (Local DB) │ │
+│  │                      │  │                      │  │              │ │
+│  │ GET /reservations    │  │ BullMQ Jobs          │  │ Tables:      │ │
+│  │   (updated_since)    │  │ - generatePinQueue   │  │ - users      │ │
+│  │                      │  │ - revokePinQueue     │  │ - locks      │ │
+│  │ Response: {          │  │                      │  │ - reservations
+│  │   reservations: []   │  │ Reconciliation Job   │  │ - credentials
+│  │ }                    │  │                      │  │ - reconciliation_logs
+│  └──────────────────────┘  └──────────────────────┘  └──────────────┘
+│         ▲                           ▲                        ▲
+│         │                           │                        │
+│         └───────────────────────────┼────────────────────────┘
+│                                     │
+│                    ┌────────────────┴─────────────────┐
+│                    │                                  │
+│         Connection from: ReconciliationService        │
+│                                                      │
+└──────────────────────────────────────────────────────────────────────────┘
+                                   ▲
+                                   │
+                    ┌──────────────┴──────────────┐
+                    │                             │
+                    │  SERVER.TS STARTUP          │
+                    │  registerReconciliationJob()
+                    │
+┌───────────────────┴─────────────────────────────────────────────────────┐
+│                        APPLICATION LAYER                                 │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                            │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │  CRON JOB TRIGGER (*/30 * * * *)                                 │   │
+│  │  Every 30 minutes, BullMQ fires the job                          │   │
+│  └──────────────────┬───────────────────────────────────────────────┘   │
+│                     │                                                     │
+│                     ▼                                                     │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │  ReconciliationService.reconcile()                               │   │
+│  │                                                                  │   │
+│  │  Step 1: Get lastRunAt from ReconciliationLog                   │   │
+│  │  ├─ SELECT MAX("completedAt") FROM reconciliation_logs          │   │
+│  │  └─ If first run: use 24 hours ago                              │   │
+│  │                                                                  │   │
+│  │  Step 2: Fetch updates from Stays API                           │   │
+│  │  ├─ Call staysClient.getReservationsUpdatedSince(lastRunAt)    │   │
+│  │  └─ Response: Array of StaysReservation objects                 │   │
+│  │                                                                  │   │
+│  │  Step 3: Process each reservation                               │   │
+│  │  ├─ For each staysReservation:                                 │   │
+│  │  │   ├─ Find existing by staysReservationId                    │   │
+│  │  │   ├─ If NOT found:                                          │   │
+│  │  │   │   ├─ createReservationFromStays()                       │   │
+│  │  │   │   ├─ INSERT into reservations table                     │   │
+│  │  │   │   ├─ scheduleJobs() for PIN generation/revocation      │   │
+│  │  │   │   └─ stats.created++                                   │   │
+│  │  │   └─ If found:                                              │   │
+│  │  │       ├─ updateReservationFromStays()                       │   │
+│  │  │       ├─ Check: guestName, email, status changed?           │   │
+│  │  │       ├─ If yes: UPDATE reservation                         │   │
+│  │  │       ├─ If status → 'confirmed': reschedule jobs          │   │
+│  │  │       └─ stats.updated++ or skip                           │   │
+│  │  │                                                              │   │
+│  │  Step 4: Cleanup orphaned jobs                                 │   │
+│  │  ├─ cleanupOrphanedJobs()                                      │   │
+│  │  ├─ GET all jobs from generatePinQueue + revokePinQueue       │   │
+│  │  ├─ For each job:                                              │   │
+│  │  │   ├─ Extract reservationId from job.data                    │   │
+│  │  │   ├─ Find Reservation in DB                                 │   │
+│  │  │   ├─ If NOT found: job.remove()                             │   │
+│  │  │   └─ stats.orphaned++                                       │   │
+│  │  │                                                              │   │
+│  │  Step 5: Log result                                            │   │
+│  │  ├─ ReconciliationLog.create({                                │   │
+│  │  │   status: 'success' or 'failed',                           │   │
+│  │  │   fetched, created, updated, orphaned, errors,             │   │
+│  │  │   duration: endTime - startTime                            │   │
+│  │  │ })                                                          │   │
+│  │  └─ Return ReconciliationResult                                │   │
+│  │                                                                  │   │
+│  └──────────────────┬───────────────────────────────────────────────┘   │
+│                     │                                                     │
+│                     ▼                                                     │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │  API ENDPOINT: GET /api/admin/reconciliation/status             │   │
+│  │                                                                  │   │
+│  │  1. Verify JWT token (admin role)                               │   │
+│  │  2. Query ReconciliationLog (latest)                            │   │
+│  │  3. Calculate nextRun = lastCompleted + 30 minutes              │   │
+│  │  4. Return:                                                     │   │
+│  │     {                                                            │   │
+│  │       "data": {                                                 │   │
+│  │         "lastRun": {...},                                       │   │
+│  │         "nextRun": "2024-02-01T11:02:00Z",                     │   │
+│  │         "currentStatus": "success",                             │   │
+│  │         "schedule": "*/30 * * * *"                             │   │
+│  │       }                                                          │   │
+│  │     }                                                            │   │
+│  │                                                                  │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
+│                                                                            │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │  DASHBOARD / MONITORING                                          │   │
+│  │                                                                  │   │
+│  │  Frontend displays:                                              │   │
+│  │  - Last Run: 2024-02-01 10:30:00                                │   │
+│  │  - Status: ✅ Success                                            │   │
+│  │  - Duration: 2m 15s                                              │   │
+│  │  - Stats:                                                        │   │
+│  │    • Fetched: 45 reservations                                   │   │
+│  │    • Created: 3 new                                              │   │
+│  │    • Updated: 12 existing                                        │   │
+│  │    • Orphaned: 0 jobs cleaned                                   │   │
+│  │    • Errors: 0                                                   │   │
+│  │  - Next Run: 11:00:00                                            │   │
+│  │                                                                  │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🔄 Data Flow Diagram
+
+```
+TIME: 10:30:00 (Cron triggers)
+
+          ┌─────────────────────────┐
+          │ Redis: Job Queue Fires  │
+          └────────────┬────────────┘
+                       │
+                       ▼
+        ┌──────────────────────────────┐
+        │ BullMQ Worker                │
+        │ Picks up: "periodic" job     │
+        └────────────┬─────────────────┘
+                     │
+                     ▼
+        ┌──────────────────────────────────────────┐
+        │ ReconciliationService.reconcile()        │
+        │                                          │
+        │ 1. Query DB:                             │
+        │    lastRunAt = 10:00:00 (30 min ago)     │
+        │                                          │
+        │ 2. Call Stays API:                       │
+        │    GET /api/reservations?updated_since= │
+        │    10:00:00                              │
+        │                                          │
+        │    Response:                             │
+        │    [                                     │
+        │      {                                   │
+        │        id: 'stay-123',                   │
+        │        accommodation_id: 'acc-1',        │
+        │        guest_name: 'John Doe',           │
+        │        status: 'confirmed',              │
+        │        check_in: '2024-02-05',           │
+        │        check_out: '2024-02-08'           │
+        │      },                                  │
+        │      ... (44 more)                       │
+        │    ]                                     │
+        │    Total: 45 reservations                │
+        │                                          │
+        │ 3. For each reservation:                 │
+        │                                          │
+        │    A. stay-123:                          │
+        │       ├─ Find by staysReservationId      │
+        │       ├─ NOT FOUND                       │
+        │       ├─ → CREATE new reservation        │
+        │       ├─ INSERT into DB                  │
+        │       ├─ scheduleJobs():                 │
+        │       │  ├─ generatePin: delay to        │
+        │       │  │  2024-02-05 06:00 (2h before)│
+        │       │  └─ revokePin: delay to         │
+        │       │     2024-02-09 (24h after)      │
+        │       └─ stats.created++                 │
+        │                                          │
+        │    B. stay-456 (exists, unchanged):      │
+        │       ├─ Find by staysReservationId      │
+        │       ├─ FOUND                           │
+        │       ├─ Compare fields                  │
+        │       ├─ NO CHANGES                      │
+        │       ├─ SKIP update                     │
+        │       └─ (no stats increment)            │
+        │                                          │
+        │    C. stay-789 (exists, changed):        │
+        │       ├─ Find by staysReservationId      │
+        │       ├─ FOUND                           │
+        │       ├─ Compare fields                  │
+        │       ├─ STATUS CHANGED: pending→confirm │
+        │       ├─ UPDATE reservation              │
+        │       ├─ Reschedule PIN jobs             │
+        │       └─ stats.updated++                 │
+        │                                          │
+        │    ... (42 more similar)                 │
+        │                                          │
+        │ 4. cleanupOrphanedJobs():                │
+        │    ├─ Query generatePinQueue: 150 jobs   │
+        │    ├─ Query revokePinQueue: 120 jobs     │
+        │    ├─ For each job:                      │
+        │    │  ├─ Find Reservation                │
+        │    │  ├─ Job gen-oldid-1:                │
+        │    │  │  └─ Reservation NOT FOUND        │
+        │    │  │     → job.remove()               │
+        │    │  └─ (0 orphaned found this run)     │
+        │    └─ stats.orphaned += 0                │
+        │                                          │
+        │ 5. ReconciliationLog.create():           │
+        │    {                                     │
+        │      id: 'uuid-789',                     │
+        │      lastRunAt: 10:00:00,                │
+        │      startedAt: 10:30:00,                │
+        │      completedAt: 10:32:15,              │
+        │      duration: 135000 (ms),              │
+        │      fetched: 45,                        │
+        │      created: 3,                         │
+        │      updated: 12,                        │
+        │      orphaned: 0,                        │
+        │      deleted: 0,                         │
+        │      errors: 0,                          │
+        │      status: 'success',                  │
+        │      message: null                       │
+        │    }                                     │
+        │                                          │
+        │ Return: ReconciliationResult             │
+        └──────────────┬───────────────────────────┘
+                       │
+                       ▼
+        ┌──────────────────────────────┐
+        │ BullMQ Worker Completes      │
+        │ Logs: "✅ Completed"         │
+        └────────────┬─────────────────┘
+                     │
+                     ▼
+        ┌──────────────────────────────────────┐
+        │ Database Updated:                    │
+        │ - 3 new reservations                 │
+        │ - 12 existing updated                │
+        │ - 6 PIN generation jobs scheduled   │
+        │ - 1 ReconciliationLog entry created │
+        └──────────────┬───────────────────────┘
+                       │
+                       ▼
+        ┌──────────────────────────────────────┐
+        │ API Ready: /api/admin/reconciliation/ │
+        │ status can return fresh stats        │
+        └──────────────────────────────────────┘
+
+NEXT EXECUTION: 11:00:00 (30 min later, auto-scheduled)
+```
+
+---
+
+## 📊 PIN Job Scheduling Timeline
+
+```
+RESERVATION: Check-in 2024-02-05 10:00, Check-out 2024-02-08 14:00
+
+Timeline:
+─────────────────────────────────────────────────────────────────
+
+2024-02-05 08:00  ◄─── generatePin Job TRIGGERS
+                         Action: Create credential (PIN)
+                         Status: isActive = true, expiresAt = 2024-02-05 10:00
+                         Duration: 2 hours before check-in
+
+2024-02-05 10:00  ◄─── CHECK-IN TIME
+                         Guest enters with PIN
+
+2024-02-08 14:00  ◄─── CHECK-OUT TIME
+                         Guest leaves
+
+2024-02-09 14:00  ◄─── revokePin Job TRIGGERS
+                         Action: Revoke credential (PIN)
+                         Status: revokedAt = 2024-02-09 14:00
+                         Duration: 24 hours after check-out
+
+
+Job Details:
+─────────────
+
+generatePin Job:
+  - Job ID: gen-res-123456
+  - Queue: generatePinQueue
+  - Delay: (checkIn - now - 2h) milliseconds
+  - Data: { reservationId, accommodationId, lockId }
+  - On execution: Create new Credential with PIN
+
+revokePin Job:
+  - Job ID: rev-res-123456
+  - Queue: revokePinQueue
+  - Delay: (checkOut - now + 24h) milliseconds
+  - Data: { reservationId, credentialId }
+  - On execution: Update Credential.revokedAt = NOW()
+```
+
+---
+
+## 🧹 Orphaned Job Cleanup
+
+```
+SCENARIO: PIN jobs exist but reservation was deleted
+
+BEFORE CLEANUP:
+─────────────
+
+Redis (BullMQ):
+  ├─ gen-res-old-123 (generatePin job)
+  ├─ gen-res-old-456 (generatePin job)
+  ├─ rev-res-valid-1 (revokePin job)
+  └─ ... (many more)
+
+PostgreSQL:
+  reservations table:
+    ├─ res-valid-1 (ACTIVE)
+    ├─ res-valid-2 (ACTIVE)
+    └─ (res-old-123 and res-old-456 DELETED)
+
+
+CLEANUP PROCESS:
+───────────────
+
+1. Get all jobs from generatePinQueue
+   → [gen-res-old-123, gen-res-old-456, ...]
+
+2. Get all jobs from revokePinQueue
+   → [rev-res-valid-1, ...]
+
+3. For each job:
+   ├─ Extract reservationId from job.data
+   └─ Query: SELECT id FROM reservations WHERE id = reservationId
+   
+   a) Job: gen-res-old-123
+      └─ Query returns: NULL (reservation doesn't exist)
+         → job.remove()  ✓ DELETED
+      
+   b) Job: gen-res-old-456
+      └─ Query returns: NULL
+         → job.remove()  ✓ DELETED
+      
+   c) Job: rev-res-valid-1
+      └─ Query returns: res-valid-1 (reservation exists)
+         → job.keep()  (no action)
+
+RESULT:
+──────
+stats.orphaned = 2
+Redis now clean: orphaned jobs removed
+```
+
+---
+
+## 🚀 Error Scenarios
+
+```
+SCENARIO 1: Stays API Unavailable
+──────────────────────────────────
+
+reconcile() call
+  ↓
+Call staysClient.getReservationsUpdatedSince()
+  ↓
+❌ Network error / API down
+  ↓
+Catch exception in try-catch
+  ↓
+ReconciliationLog.create({
+  status: 'failed',
+  error: 'Failed to fetch from Stays API',
+  fetched: 0, created: 0, updated: 0,
+  errors: 1
+})
+  ↓
+Job retry logic triggered
+  - Retry 1: after 2s
+  - Retry 2: after 4s (exponential backoff)
+  - Retry 3: after 8s
+  ↓
+If all retries fail:
+  - Next execution: in 30 minutes (normal schedule)
+
+
+SCENARIO 2: Partial Failure (1 of 45 reservations fails)
+────────────────────────────────────────────────────────
+
+For each staysReservation:
+  - 44 succeed: created/updated
+  - 1 fails: processStaysReservation() throws
+    └─ Caught in try-catch (inner)
+    └─ stats.errors++
+    └─ Continue to next reservation
+    
+Final result:
+  {
+    success: true,  (overall still succeeds)
+    stats: {
+      fetched: 45,
+      created: 44,
+      errors: 1,
+      ...
+    },
+    message: null
+  }
+  
+ReconciliationLog:
+  status: 'success'  (partial success is acceptable)
+  errors: 1
+
+
+SCENARIO 3: Orphaned Cleanup Fails
+──────────────────────────────────
+
+cleanupOrphanedJobs() throws exception
+  ↓
+Caught in try-catch (main reconcile)
+  ↓
+stats.orphaned remains 0 (not incremented)
+stats.errors++
+  ↓
+ReconciliationLog.create({
+  status: 'success',  (non-blocking)
+  message: 'Partial cleanup failed, but processing succeeded'
+})
+  ↓
+Next execution will retry cleanup
+```
+
+---
+
+## 📈 Metrics & Monitoring
+
+```
+ReconciliationLog Stats Example:
+─────────────────────────────────
+
+id                  | 87a3f4e9-1b2c-4d5e-8f9a-0b1c2d3e4f5a
+lastRunAt           | 2024-02-01 10:00:00
+startedAt           | 2024-02-01 10:30:00
+completedAt         | 2024-02-01 10:32:15
+duration            | 135000 (2 minutes 15 seconds)
+fetched             | 45
+created             | 3
+updated             | 12
+orphaned            | 0
+deleted             | 0
+errors              | 0
+status              | success
+message             | NULL
+
+Dashboard Calculation:
+  ✓ Success rate: 100% (no errors)
+  ✓ Throughput: 45 reservations / 135s = 0.33 res/sec
+  ✓ Processing time: 135s for 45 items = 3s per item average
+  ✓ Impact: 3 new, 12 updated, 0 orphaned cleaned
+  ✓ Next execution: 11:00:00 (exactly 30 min later)
+```
+
+---
+
+## 🎯 Summary
+
+```
+PASSO 16 Implementation: Three main components
+
+1. ReconciliationService (Library)
+   └─ Contains all sync logic
+   └─ Called by job runner
+   └─ Returns stats + result
+
+2. reconciliation.job (BullMQ Worker)
+   └─ Scheduled every 30 minutes
+   └─ Calls ReconciliationService.reconcile()
+   └─ Handles retries and errors
+
+3. ReconciliationLog (Audit Trail)
+   └─ Records every execution
+   └─ Tracks stats for monitoring
+   └─ Enables visibility + debugging
+
+Result: Fully synced, audited, resilient system ✅
+```

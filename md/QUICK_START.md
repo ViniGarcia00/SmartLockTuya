@@ -1,398 +1,284 @@
-# 🚀 Quick Start — SmartLock Tuya (PASSO 5)
+# ⚡ Quick Start - SmartLock Tuya
 
-## ⚡ Início Rápido (5 minutos)
+## 1️⃣ Primeira Vez? Setup Rápido
 
-### 1️⃣ Ver o Banco de Dados (Interface Gráfica)
 ```bash
-npm run db:studio
-# Abre http://localhost:5555
-# Clique em cada tabela para ver os dados
+# Clone ou abra o projeto
+cd /caminho/para/Tuya-v20
+
+# 1. Configure o banco de dados
+npm run db:setup
+
+# 2. Inicie o servidor
+npm start
+
+# 3. Acesse no navegador
+http://localhost:3000/login.html
 ```
 
-### 2️⃣ Popular Dados de Teste
+### Credenciais de Teste
+- **Email**: `teste@example.com`
+- **Senha**: `senha123`
+
+---
+
+## 2️⃣ Verificar Status
+
 ```bash
-npm run db:seed
-# Cria automaticamente:
-# - 3 acomodações
-# - 3 fechaduras Tuya
-# - 2 reservas
-# - 2 credenciais (PINs)
-# - 2 webhooks
-# - 2 logs de auditoria
-```
+# Servidor rodando?
+# Deve aparecer: "Servidor rodando em http://localhost:3000"
 
-### 3️⃣ Começar a Desenvolver
-```typescript
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+# Banco conectado?
+# Deve aparecer: "Conectado ao banco de dados PostgreSQL"
 
-// Exemplo: Buscar uma acomodação
-const accommodation = await prisma.accommodation.findFirst({
-  where: { staysAccommodationId: "ACC-STY-001" }
-});
-
-// Exemplo: Buscar todas as reservas confirmadas
-const reservations = await prisma.reservation.findMany({
-  where: { status: "CONFIRMED" },
-  include: { 
-    accommodation: true,
-    credentials: true 
-  }
-});
-
-// Exemplo: Criar uma nova credencial
-const credential = await prisma.credential.create({
-  data: {
-    reservationId: reservation.id,
-    lockId: lock.id,
-    pin: hashedPin,
-    validFrom: new Date(),
-    validTo: new Date(),
-  }
-});
+# Sem erros de tabelas?
+# NÃO deve aparecer: "relação users não existe"
 ```
 
 ---
 
-## 📚 Documentação Disponível
+## 3️⃣ Erros Comuns e Soluções
 
-| Arquivo | Para Quem | Conteúdo |
-|---------|----------|---------|
-| `PASSO5_MODELO_DADOS.md` | 🛠️ Developers | Guia técnico completo, exemplos |
-| `PASSO5_RESUMO.md` | 👔 PMs/Leads | Arquitetura, Features, Timeline |
-| `PASSO5_FINAL.txt` | 📊 Stakeholders | Estatísticas, Checklist, Status |
-| `PROGRESSO.md` | 🔄 Project Manager | Status geral, Próximos passos |
-| `README_VISAO_GERAL.md` | 🎯 Todos | Visão geral do projeto |
-| `prisma/README.md` | 🗄️ Database team | Instruções Prisma, Troubleshooting |
+### ❌ Erro: "relação users não existe" (500 error no login)
+```bash
+npm run db:setup
+```
+
+### ❌ Erro: "Cannot connect to database"
+```bash
+# Verificar se PostgreSQL está rodando
+# Windows: pg_ctl status -D "C:\Program Files\PostgreSQL\data"
+# Linux: sudo systemctl status postgresql
+```
+
+### ❌ Erro: "Email ou senha incorretos"
+- Verifique email: `teste@example.com`
+- Verifique senha: `senha123`
+- Tente criar novo usuário em `/register.html`
+
+### ❌ Erro: "Por favor, confirme seu email"
+- O email precisa estar verificado
+- Use o usuário de teste que já está verificado
+- Ou verifique o email criado
 
 ---
 
-## 🔧 Scripts Úteis
+## 4️⃣ Criar Novo Usuário
+
+### Via Interface
+1. Acesse `http://localhost:3000/register.html`
+2. Preencha o formulário
+3. Confirme seu email
+4. Faça login
+
+### Via Banco de Dados
+```sql
+-- Conectar ao PostgreSQL
+psql -U tuya_admin -d tuya_locks_db
+
+-- Inserir usuário
+INSERT INTO users (nome, empresa, email, whatsapp, senha_hash, email_verificado, ativo)
+VALUES (
+  'Seu Nome',
+  'Sua Empresa',
+  'seu-email@example.com',
+  '+55 11 99999-9999',
+  'hash_da_senha_aqui',
+  true,
+  true
+);
+```
+
+Para gerar hash da senha em Node.js:
+```javascript
+const bcrypt = require('bcrypt');
+bcrypt.hash('sua-senha', 10, (err, hash) => console.log(hash));
+```
+
+---
+
+## 5️⃣ Configurar Tuya API
+
+### Passo 1: Obter credenciais
+1. Acesse [Tuya Cloud](https://auth.tuya.com)
+2. Crie conta developer
+3. Crie projeto IoT
+4. Gere chaves:
+   - `client_id`
+   - `client_secret`
+
+### Passo 2: Configurar no .env
+```bash
+TUYA_CLIENT_ID=seu_client_id
+TUYA_CLIENT_SECRET=seu_client_secret
+TUYA_REGION_HOST=openapi.tuyaus.com  # ou openapi.tuyaeu.com
+```
+
+### Passo 3: Adicionar Tuya no Dashboard
+1. Faça login
+2. Vá para Settings
+3. Insira as credenciais
+4. Teste conexão
+
+---
+
+## 6️⃣ Sincronizar Acomodações (PASSO 11)
+
+### Testar Endpoint
+```bash
+curl -X POST http://localhost:3000/api/admin/stays/sync-accommodations \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+### Resposta Esperada
+```json
+{
+  "success": true,
+  "created": 5,
+  "updated": 2,
+  "inactivated": 1,
+  "total": 8,
+  "errors": [],
+  "details": {
+    "requestId": "uuid",
+    "startedAt": "2025-10-24T00:30:23.363Z",
+    "completedAt": "2025-10-24T00:30:23.400Z",
+    "duration": 37
+  }
+}
+```
+
+---
+
+## 7️⃣ Variáveis de Ambiente Essenciais
+
+```bash
+# Banco de Dados
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=tuya_locks_db
+DB_USER=tuya_admin
+DB_PASSWORD=seu_password
+
+# Segurança
+JWT_SECRET=seu_jwt_secret_seguro
+SESSION_SECRET=seu_session_secret_seguro
+ADMIN_TOKEN=seu_admin_token_seguro
+
+# Email
+EMAIL_SERVICE=gmail
+EMAIL_USER=seu-email@gmail.com
+EMAIL_PASSWORD=sua-app-password
+
+# App
+APP_URL=http://localhost:3000
+NODE_ENV=development
+
+# Tuya
+TUYA_CLIENT_ID=seu_id
+TUYA_CLIENT_SECRET=seu_secret
+TUYA_REGION_HOST=openapi.tuyaus.com
+```
+
+---
+
+## 8️⃣ Estrutura de Pastas
+
+```
+Tuya-v20/
+├── server.js                    # Servidor Express principal
+├── routes/
+│   └── auth.js                  # Rotas de autenticação
+├── middleware/
+│   └── auth.js                  # Middleware JWT
+├── public/
+│   ├── login.html              # Página de login
+│   ├── register.html           # Página de registro
+│   ├── dashboard.html          # Dashboard principal
+│   └── settings.html           # Configurações
+├── config/
+│   └── database.js             # Conexão PostgreSQL
+├── scripts/
+│   └── setup-db.js             # Setup do banco
+├── migrations/
+│   ├── 001_create_user_sessions.sql
+│   └── 002_create_activity_logs.sql
+└── database_schema.sql         # Schema completo
+```
+
+---
+
+## 9️⃣ Comandos Úteis
 
 ```bash
 # Desenvolvimento
-npm run dev                  # Inicia servidor Express
+npm start                  # Inicia servidor
+npm run dev               # Modo desenvolvimento
 
 # Banco de Dados
-npm run db:seed            # Popula dados de teste
-npm run db:studio          # Abre UI gráfica
-npm run db:migrate         # Executa migrations pendentes
+npm run db:setup         # Cria tabelas e usuário teste
+npm run db:migrate       # Executa migrações Prisma
 
 # Testes
-npm test                   # Executa todos os testes
-npm test -- webhook.test   # Testa apenas webhooks
-npm run test:coverage      # Gera relatório de cobertura
+npm test                 # Executa testes
+npm run test:watch      # Modo watch
 
 # Code Quality
-npm run lint               # Verifica linting
-npm run lint:fix           # Corrige problemas
-npm run format             # Formata código
+npm run lint            # Verifica linting
+npm run lint:fix        # Corrige linting
+npm run format          # Formata código
 
-# Mock
-npm run mock:stays         # Inicia mock server Stays
+# Mock/Desenvolvimento
+npm run mock:stays      # Inicia mock do Stays API
 ```
 
 ---
 
-## 🎯 As 7 Tabelas Explicadas
+## 🔟 Logs e Debugging
 
-### 📦 Accommodation
-**O que:** Acomodações (imóveis alugados)  
-**Vem de:** Stays API  
-**Exemplo:**
-```json
-{
-  "id": "cmh41mr2w0000rh8c4dtsm31n",
-  "staysAccommodationId": "ACC-STY-001",
-  "name": "Apartamento Centro Luxo",
-  "status": "ACTIVE"
-}
+### Ver logs em tempo real
+```bash
+npm start
+# Você verá:
+# ✓ Servidor rodando
+# ✓ Conectado ao banco de dados
+# ✓ Requisições HTTP
+# ✓ Erros de SQL
 ```
 
-### 🔐 Lock
-**O que:** Fechaduras inteligentes  
-**Vem de:** Cadastro manual do admin  
-**Exemplo:**
-```json
-{
-  "id": "cmh41mr8s0003rh8c2k4n5o9p",
-  "vendor": "TUYA",
-  "deviceId": "bf3db4a6b2d8c0f1e2a3b4c5",
-  "alias": "Fechadura Porta Principal"
-}
-```
+### Console do Navegador (F12)
+- Network: Veja requisições HTTP
+- Console: Mensagens de erro JavaScript
+- Application: Veja localStorage (token JWT)
 
-### 🔗 AccommodationLock
-**O que:** Relacionamento entre acomodação e fechadura  
-**Regra:** Uma acomodação = uma fechadura  
-**Exemplo:**
-```json
-{
-  "id": "cmh41mr9t0004rh8cgk3a1b2c",
-  "accommodationId": "cmh41mr2w0000rh8c4dtsm31n",
-  "lockId": "cmh41mr8s0003rh8c2k4n5o9p",
-  "createdBy": "admin@example.com"
-}
-```
-
-### 📅 Reservation
-**O que:** Reservas de hóspedes  
-**Vem de:** Stays webhooks  
-**Exemplo:**
-```json
-{
-  "id": "cmh41mrb20005rh8cc4m5n6o7p",
-  "staysReservationId": "RES-STY-202510-001",
-  "accommodationId": "cmh41mr2w0000rh8c4dtsm31n",
-  "checkInAt": "2025-10-24T15:00:00Z",
-  "checkOutAt": "2025-10-26T10:00:00Z",
-  "status": "CONFIRMED"
-}
-```
-
-### 🔑 Credential
-**O que:** PINs temporários de acesso  
-**Válido:** Apenas durante a reserva  
-**Exemplo:**
-```json
-{
-  "id": "cmh41mrc40006rh8cdp6q7r8s9t",
-  "reservationId": "cmh41mrb20005rh8cc4m5n6o7p",
-  "lockId": "cmh41mr8s0003rh8c2k4n5o9p",
-  "pin": "$2b$10$hashed...",           // ← Hash bcrypt
-  "plainPin": "1234567",                // ← Temporário para envio
-  "status": "ACTIVE",
-  "validFrom": "2025-10-24T16:00:00Z",
-  "validTo": "2025-10-26T10:00:00Z"
-}
-```
-
-### 📡 WebhookEvent
-**O que:** Registro de todos os eventos recebidos  
-**Objetivo:** Auditoria completa  
-**Exemplo:**
-```json
-{
-  "id": "cmh41mrd50007rh8cep7s8t9u0v",
-  "eventId": "550e8400-e29b-41d4-a716-446655440000",
-  "eventType": "reservation.created",
-  "reservationId": "cmh41mrb20005rh8cc4m5n6o7p",
-  "rawBody": { "full": "webhook", "payload": "..." },
-  "processed": true,
-  "processedAt": "2025-10-23T23:17:33Z"
-}
-```
-
-### 📝 AuditLog
-**O que:** Log de todas as ações do sistema  
-**Objetivo:** Compliance + debugging  
-**Exemplo:**
-```json
-{
-  "id": "cmh41mre60008rh8cfq8s9t0u1v",
-  "action": "CREATE_CREDENTIAL",
-  "entity": "Credential",
-  "entityId": "cmh41mrc40006rh8cdp6q7r8s9t",
-  "userId": "admin@example.com",
-  "details": { "pin": "1234567", "... ": "..." }
-}
+### Verificar Token JWT
+```javascript
+// No console do navegador (F12):
+localStorage.getItem('token')
 ```
 
 ---
 
-## 🔍 Queries Comuns
+## ✅ Checklist de Setup
 
-### Buscar acomodação com sua fechadura
-```typescript
-const accommodation = await prisma.accommodation.findFirst({
-  where: { staysAccommodationId: "ACC-STY-001" },
-  include: {
-    locks: {
-      include: { lock: true }
-    }
-  }
-});
-```
-
-### Listar PINs ativos para hoje
-```typescript
-const activeCredentials = await prisma.credential.findMany({
-  where: {
-    status: "ACTIVE",
-    validFrom: { lte: new Date() },
-    validTo: { gte: new Date() }
-  },
-  include: { reservation: true, lock: true }
-});
-```
-
-### Buscar eventos não processados
-```typescript
-const failedWebhooks = await prisma.webhookEvent.findMany({
-  where: { processed: false },
-  orderBy: { createdAt: 'desc' }
-});
-```
-
-### Contar PINs por status
-```typescript
-const stats = await prisma.credential.groupBy({
-  by: ['status'],
-  _count: true
-});
-```
+- [ ] PostgreSQL instalado e rodando
+- [ ] `.env` configurado com credenciais do BD
+- [ ] `npm install` executado
+- [ ] `npm run db:setup` executado com sucesso
+- [ ] `npm start` rodando sem erros
+- [ ] Consegue acessar `http://localhost:3000`
+- [ ] Consegue fazer login com `teste@example.com` / `senha123`
+- [ ] Dashboard aparecer após login
 
 ---
 
-## 🐛 Troubleshooting Rápido
+## 📞 Precisa de Ajuda?
 
-### "Erro: DATABASE_URL não encontrado"
-✅ **Solução:** Verificar `.env` tem `DATABASE_URL` configurada
-```bash
-# Verificar
-cat .env | grep DATABASE_URL
-
-# Configurar se não existir
-echo "DATABASE_URL=postgresql://user:pass@localhost:5432/db?schema=public" >> .env
-```
-
-### "Erro: Database não conecta"
-✅ **Solução:** PostgreSQL precisa estar rodando
-```bash
-# Windows/Mac/Linux
-# Verificar se PostgreSQL está ativo
-# ou usar Docker: docker run -d -p 5432:5432 postgres:15
-```
-
-### "Tabelas não existem"
-✅ **Solução:** Executar migrations
-```bash
-npx prisma migrate dev
-```
-
-### "Seed deu erro"
-✅ **Solução:** Fazer reset e tentar novamente
-```bash
-npx prisma migrate reset
-# ⚠️ Isso deleta TODOS os dados!
-```
+1. **Leia**: `DEBUG_LOGIN_500_RESOLVIDO.md`
+2. **Veja**: `PASSO11_DELIVERABLES_INDEX.md`
+3. **Estude**: Arquivos dentro de `Próximos Passos/`
+4. **Verifique**: Variáveis de ambiente em `.env.example`
 
 ---
 
-## 📊 Ver Dados com SQL Direto
-
-```bash
-# Se preferir SQL nativo em vez de Prisma Studio
-
-# Conectar ao PostgreSQL
-psql tuya_locks_db -U tuya_admin
-
-# Listar acomodações
-SELECT * FROM "Accommodation";
-
-# Listar PINs ativos
-SELECT * FROM "Credential" WHERE status = 'ACTIVE';
-
-# Ver webhooks processados
-SELECT * FROM "WebhookEvent" WHERE processed = true;
-
-# Sair
-\q
-```
-
----
-
-## 🎓 Próximos Passos (PASSO 6)
-
-Depois de PASSO 5, começar PASSO 6 — Job Scheduler:
-
-```bash
-# PASSO 6 criará:
-# 1. Fila BullMQ para credenciais
-# 2. Job para gerar PINs automaticamente
-# 3. Job para revogar PINs
-# 4. Job para enviar notificações
-# 5. Sincronização com Tuya API
-
-# Estimado: 2-3 horas de desenvolvimento
-```
-
----
-
-## 💡 Tips & Tricks
-
-### Resetar tudo e começar do zero
-```bash
-npx prisma migrate reset
-npm run db:seed
-npm run db:studio
-```
-
-### Gerar nova migração após mudanças
-```bash
-# 1. Editar prisma/schema.prisma
-# 2. Executar:
-npx prisma migrate dev --name descriptive_name
-# 3. Arquivo SQL será criado em prisma/migrations/
-```
-
-### Exibir SQL gerado pelo Prisma
-```bash
-# Adicionar ao .env:
-DATABASE_URL=postgresql://...?schema=public&log=query
-# Agora todas as queries SQL aparecem no console
-```
-
-### Usar Prisma Client em scripts
-```bash
-# Exemplo: copiar script.ts com:
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
-
-// ... seu código
-
-# Executar:
-npx ts-node script.ts
-```
-
----
-
-## 📞 Ajuda Rápida
-
-**Pergunta:** Como adicionar uma nova tabela?  
-**Resposta:** Editar `prisma/schema.prisma` → `npx prisma migrate dev --name add_table`
-
-**Pergunta:** Como mudar um campo existente?  
-**Resposta:** Editar campo → `npx prisma migrate dev --name modify_table`
-
-**Pergunta:** Como deletar uma tabela?  
-**Resposta:** Remover do schema → `npx prisma migrate dev --name delete_table`
-
-**Pergunta:** Como fazer backup do banco?  
-**Resposta:** `pg_dump tuya_locks_db > backup.sql`
-
-**Pergunta:** Como restaurar backup?  
-**Resposta:** `psql tuya_locks_db < backup.sql`
-
----
-
-## 🎉 Status
-
-✅ **PASSO 5 CONCLUÍDO**
-- 7 tabelas criadas
-- 13 registros de teste
-- Tipos TypeScript 100%
-- Documentação pronta
-
-🚀 **PRÓXIMO: PASSO 6**
-- Job Scheduler com BullMQ
-- Automação de PINs
-- Sincronização Tuya API
-
----
-
-**Última atualização:** 23/10/2025  
-**Versão:** 1.0.0-passo5  
-**Branch:** integration-stays
-
-💬 **Tem dúvidas?** Veja `PASSO5_MODELO_DADOS.md` ou `prisma/README.md`
+**Status**: ✅ Sistema pronto para uso!

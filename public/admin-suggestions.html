@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartLock Tuya - Sugestões de Mapeamento</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
+        Cantarell, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    header {
+      margin-bottom: 40px;
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin: 0;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-back {
+      padding: 10px 16px;
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+      background: #334155;
+      color: #cbd5e1;
+    }
+
+    .breadcrumb {
+      font-size: 13px;
+      color: #64748b;
+    }
+
+    .breadcrumb a {
+      color: #667eea;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .breadcrumb a:hover {
+      text-decoration: underline;
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: 250px 1fr;
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+
+    .sidebar {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 20px;
+      height: fit-content;
+      position: sticky;
+      top: 20px;
+    }
+
+    .sidebar-section {
+      margin-bottom: 20px;
+    }
+
+    .sidebar-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .sidebar-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
+    }
+
+    .sidebar-item {
+      display: block;
+      padding: 10px 12px;
+      background: #0f172a;
+      border-radius: 6px;
+      color: #cbd5e1;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 6px;
+      text-decoration: none;
+      border-left: 3px solid transparent;
+    }
+
+    .sidebar-item:hover {
+      background: #334155;
+      border-left-color: #667eea;
+    }
+
+    .sidebar-item.active {
+      background: rgba(102, 126, 234, 0.1);
+      color: #667eea;
+      border-left-color: #667eea;
+    }
+
+    .main {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 24px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #334155;
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    .card-subtitle {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-top: 8px;
+    }
+
+    .filters {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .filter-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: #94a3b8;
+      text-transform: uppercase;
+    }
+
+    .filter-input {
+      padding: 8px 12px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 13px;
+    }
+
+    .filter-input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #667eea;
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #94a3b8;
+      text-transform: uppercase;
+    }
+
+    #suggestions-container {
+      width: 100%;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px 20px;
+      color: #94a3b8;
+    }
+
+    .loading::after {
+      content: '.';
+      animation: dots 1.5s steps(3, end) infinite;
+    }
+
+    @keyframes dots {
+      0% {
+        content: '.';
+      }
+      33% {
+        content: '..';
+      }
+      66% {
+        content: '...';
+      }
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #334155;
+    }
+
+    .tab {
+      padding: 12px 16px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .tab:hover {
+      color: #cbd5e1;
+    }
+
+    .tab.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    footer {
+      text-align: center;
+      padding: 20px;
+      border-top: 1px solid #334155;
+      margin-top: 40px;
+      color: #64748b;
+      font-size: 12px;
+    }
+
+    @media (max-width: 768px) {
+      .content {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+      }
+
+      .header-top {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="header-top">
+        <div>
+          <h1>🔗 Sugestões de Mapeamento</h1>
+          <div class="breadcrumb">
+            <a onclick="goToAdmin()">Admin</a> / Sugestões
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="btn-back" onclick="goToAdmin()">← Voltar</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <div class="content">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-section">
+          <div class="sidebar-title">Navegação</div>
+          <a href="admin-accommodations.html" class="sidebar-item"
+            >📍 Acomodações</a
+          >
+          <a class="sidebar-item active">🔗 Sugestões</a>
+          <a href="locks.html" class="sidebar-item">🔐 Fechaduras</a>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-title">Ações</div>
+          <button
+            class="sidebar-item"
+            style="width: 100%; text-align: left"
+            onclick="loadSuggestionsAction()"
+          >
+            🔄 Recarregar Sugestões
+          </button>
+          <button
+            class="sidebar-item"
+            style="width: 100%; text-align: left"
+            onclick="applyAllAction()"
+          >
+            ✓ Aplicar Todas
+          </button>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-title">Informações</div>
+          <div class="stat-card">
+            <div class="stat-value" id="total-count">0</div>
+            <div class="stat-label">Sugestões</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main">
+        <!-- Card de Configuração -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">⚙️ Configurações</div>
+              <div class="card-subtitle">Ajuste os parâmetros de sugestão</div>
+            </div>
+          </div>
+
+          <div class="filters">
+            <div class="filter-group">
+              <label class="filter-label">Threshold de Similaridade</label>
+              <input
+                type="range"
+                id="threshold-input"
+                class="filter-input"
+                min="0.5"
+                max="1"
+                step="0.05"
+                value="0.8"
+              />
+              <small style="color: #64748b"
+                >Mínimo: <span id="threshold-value">0.80</span> (80%)</small
+              >
+            </div>
+
+            <div class="filter-group">
+              <label class="filter-label">Máx. Sugestões</label>
+              <select id="max-suggestions-input" class="filter-input">
+                <option value="1">1 (Melhor)</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="5">5</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label class="filter-label">&nbsp;</label>
+              <button
+                onclick="loadSuggestionsAction()"
+                style="
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  color: white;
+                  padding: 8px 16px;
+                  border: none;
+                  border-radius: 6px;
+                  cursor: pointer;
+                  font-weight: 500;
+                "
+              >
+                Buscar Sugestões
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card de Sugestões -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Sugestões Disponíveis</div>
+              <div class="card-subtitle" id="suggestions-subtitle">
+                Carregando sugestões...
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabs -->
+          <div class="tabs">
+            <button class="tab active" onclick="switchTab('suggestions')">
+              📋 Sugestões
+            </button>
+            <button class="tab" onclick="switchTab('history')">
+              📊 Histórico
+            </button>
+          </div>
+
+          <!-- Suggestions Tab -->
+          <div id="suggestions" class="tab-content active">
+            <div id="suggestions-container" class="loading">
+              Carregando sugestões...
+            </div>
+          </div>
+
+          <!-- History Tab -->
+          <div id="history" class="tab-content">
+            <div id="history-container" style="text-align: center; padding: 40px">
+              <p style="color: #94a3b8">
+                Histórico de sugestões aplicadas aparecerá aqui
+              </p>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      SmartLock Tuya © 2024 | Sistema de Controle de Fechaduras Inteligentes
+    </footer>
+  </div>
+
+  <!-- Scripts -->
+  <script src="match-suggestions-ui.js"></script>
+  <script>
+    // Verificar autenticação
+    function checkAuth() {
+      if (!localStorage.getItem('token')) {
+        window.location.href = 'login.html';
+        return false;
+      }
+      return true;
+    }
+
+    // Inicializar ao carregar a página
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!checkAuth()) return;
+
+      // Atualizar valor do threshold ao mover o slider
+      const thresholdInput = document.getElementById('threshold-input');
+      thresholdInput.addEventListener('input', (e) => {
+        document.getElementById('threshold-value').textContent = parseFloat(
+          e.target.value
+        ).toFixed(2);
+      });
+
+      // Carregar sugestões iniciais
+      loadSuggestionsAction();
+    });
+
+    // Ação: Carregar sugestões
+    function loadSuggestionsAction() {
+      const threshold = parseFloat(
+        document.getElementById('threshold-input').value
+      );
+      const maxSuggestions = parseInt(
+        document.getElementById('max-suggestions-input').value
+      );
+
+      matchSuggestionsUI.loadSuggestions(threshold, maxSuggestions);
+
+      // Atualizar contador
+      setTimeout(() => {
+        document.getElementById('total-count').textContent =
+          matchSuggestionsUI.suggestions.length;
+        document.getElementById('suggestions-subtitle').textContent =
+          `${matchSuggestionsUI.suggestions.length} sugestão(ões) encontrada(s)`;
+      }, 500);
+    }
+
+    // Ação: Aplicar todas
+    async function applyAllAction() {
+      if (matchSuggestionsUI.suggestions.length === 0) {
+        alert('Não há sugestões para aplicar');
+        return;
+      }
+
+      await matchSuggestionsUI.applyAllSuggestions();
+      loadSuggestionsAction();
+    }
+
+    // Ação: Voltar para Admin
+    function goToAdmin() {
+      window.location.href = 'admin-accommodations.html';
+    }
+
+    // Ação: Trocar aba
+    function switchTab(tabName) {
+      // Desativar todas as abas
+      document.querySelectorAll('.tab').forEach((tab) => {
+        tab.classList.remove('active');
+      });
+      document.querySelectorAll('.tab-content').forEach((content) => {
+        content.classList.remove('active');
+      });
+
+      // Ativar aba selecionada
+      event.target.classList.add('active');
+      document.getElementById(tabName).classList.add('active');
+    }
+  </script>
+</body>
+</html>

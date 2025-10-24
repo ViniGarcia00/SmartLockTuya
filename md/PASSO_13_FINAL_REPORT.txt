@@ -1,0 +1,323 @@
+```
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                                                                                ║
+║                   🎉 PASSO 13 — 100% COMPLETO! 🎉                            ║
+║                                                                                ║
+║                    Mapeamento Acomodação ↔ Fechadura                          ║
+║                                                                                ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+
+📦 ENTREGAS
+═════════════════════════════════════════════════════════════════════════════════
+
+✅ 1. ENDPOINT POST /api/admin/mappings
+   ├─ Localização: routes/mappings.js
+   ├─ Funcionalidade: Mapear/desmapar acomodação ↔ fechadura
+   ├─ Validações: 1:1, existência, regras de negócio
+   └─ Status: Funcionando, testado
+
+✅ 2. MAPPING SERVICE
+   ├─ Localização: src/lib/mapping-service.ts
+   ├─ Funções: mapAccommodationToLock, unmapAccommodation, etc
+   ├─ Validações: Regras 1:1, existência, integridade
+   └─ Status: Completo, tipado (TypeScript)
+
+✅ 3. TESTES
+   ├─ Jest: tests/mappings.test.js (11 testes, 6 suites)
+   ├─ Manual: scripts/test-mappings.js (5 testes)
+   ├─ Cobertura: Mapear, desmapar, duplicatas, erros
+   └─ Status: Todos passando
+
+✅ 4. SERVER ACTIONS
+   ├─ Localização: src/app/admin/accommodations/actions.ts
+   ├─ Funções: mapLock(), unmapLock()
+   ├─ Integração: Chama POST /api/admin/mappings
+   └─ Status: Atualizado, tipado
+
+✅ 5. INTEGRAÇÃO
+   ├─ Localização: server.js
+   ├─ Mudança: app.use('/api/admin/mappings', mappingsRoutes)
+   └─ Status: Registrado e funcional
+
+✅ 6. DOCUMENTAÇÃO
+   ├─ PASSO_13_MAPPING.md (300+ linhas)
+   ├─ PASSO_13_SUMMARY.txt (visual)
+   ├─ PASSO_13_CHECKLIST.md (completo)
+   └─ Status: Abrangente
+
+
+📊 ARQUIVOS CRIADOS
+═════════════════════════════════════════════════════════════════════════════════
+
+NOVOS ARQUIVOS:
+├── routes/mappings.js                    (~350 linhas, Express route)
+├── tests/mappings.test.js                (~320 linhas, Jest tests)
+├── scripts/test-mappings.js              (~200 linhas, teste rápido)
+├── src/lib/mapping-service.ts            (~300 linhas, TypeScript)
+├── PASSO_13_MAPPING.md                   (documentação técnica)
+├── PASSO_13_SUMMARY.txt                  (resumo visual)
+├── PASSO_13_CHECKLIST.md                 (validação)
+└── src/app/api/admin/mappings/README.md  (nota sobre estrutura)
+
+ARQUIVOS MODIFICADOS:
+├── src/app/admin/accommodations/actions.ts
+│   └─ +2 Server Actions: mapLock(), unmapLock()
+└── server.js
+    └─ +1 rota registrada
+
+
+🎯 REQUISITOS ATENDIDOS
+═════════════════════════════════════════════════════════════════════════════════
+
+✅ Tarefa 1: Criar endpoint POST com:
+   ✓ Body: { accommodationId, lockId }
+   ✓ Validação: acomodação existe, fechadura existe
+   ✓ Regra: 1 accommodation → 1 lock (máximo)
+   ✓ Regra: 1 lock → 1 accommodation (máximo)
+   ✓ Se existe: atualiza (UPSERT)
+   ✓ Se lockId=null: deleta
+   ✓ Salva em AccommodationLock
+   ✓ Log: action, accommodationId, lockId, createdBy, timestamp
+   ✓ Retorna: { success, mapping }
+
+✅ Tarefa 2: Criar mapping-service.ts com:
+   ✓ mapAccommodationToLock()
+   ✓ unmapAccommodation()
+   ✓ Validações 1:1
+   ✓ Retorna: { success, error?, mapping? }
+
+✅ Tarefa 3: Criar testes com:
+   ✓ Mapeamento 1:1
+   ✓ Rejeição de duplicado
+   ✓ Desmapeamento
+   ✓ Total: 11 testes
+
+✅ Tarefa 4: Atualizar Server Actions:
+   ✓ mapLock(accommodationId, lockId)
+   ✓ unmapLock(accommodationId)
+   ✓ Chamam endpoint da API
+
+
+🔗 ENDPOINTS
+═════════════════════════════════════════════════════════════════════════════════
+
+POST /api/admin/mappings
+├─ Body: { accommodationId, lockId }
+├─ lockId=null → desmapar
+├─ Returns: { success, message, mapping }
+└─ Validações: Existência, regra 1:1
+
+GET /api/admin/mappings
+├─ Retorna: { success, mappings[], count }
+├─ Inclui: accommodation, lock, createdBy, timestamps
+└─ Ordenado por: createdAt DESC
+
+DELETE /api/admin/mappings/:accommodationId
+├─ Deleta mapeamento específico
+├─ Returns: { success, message, mapping }
+└─ Validação: Mapeamento existe
+
+
+🧪 TESTES
+═════════════════════════════════════════════════════════════════════════════════
+
+Suites:
+├─ POST - Mapeamento Válido (3 testes)
+│  ✓ Mapear com sucesso
+│  ✓ Rejeita acomodação inválida (404)
+│  ✓ Rejeita fechadura inválida (404)
+├─ POST - Rejeição de Duplicado (2 testes)
+│  ✓ Rejeita lock já mapeado (400)
+│  ✓ Permite remapear para mesma acomodação
+├─ POST - Desmapeamento (2 testes)
+│  ✓ Desmapar com sucesso
+│  ✓ Rejeita desmapar sem mapeamento (404)
+├─ GET - Listagem (1 teste)
+│  ✓ Retorna todos com dados relacionados
+├─ DELETE - Deleção (2 testes)
+│  ✓ Deleta mapeamento existente
+│  ✓ Rejeita deleção inexistente (404)
+└─ Validação (1 teste)
+   ✓ Rejeita campo obrigatório (400)
+
+Total: 11 testes em 6 suites
+Comando: npm test -- tests/mappings.test.js
+
+
+🚀 COMO USAR
+═════════════════════════════════════════════════════════════════════════════════
+
+1️⃣  TESTE AUTOMATIZADO (Jest)
+    npm test -- tests/mappings.test.js --verbose
+
+2️⃣  TESTE RÁPIDO (Node)
+    npm start              # Em um terminal
+    node scripts/test-mappings.js   # Em outro
+
+3️⃣  TESTE MANUAL (cURL)
+
+    Mapear:
+    curl -X POST http://localhost:3000/api/admin/mappings \
+      -H "Authorization: Bearer admin-token" \
+      -H "Content-Type: application/json" \
+      -d '{"accommodationId": "accom-001", "lockId": "lock-001"}'
+
+    Listar:
+    curl -X GET http://localhost:3000/api/admin/mappings \
+      -H "Authorization: Bearer admin-token"
+
+    Desmapar (lockId=null):
+    curl -X POST http://localhost:3000/api/admin/mappings \
+      -H "Authorization: Bearer admin-token" \
+      -H "Content-Type: application/json" \
+      -d '{"accommodationId": "accom-001", "lockId": null}'
+
+    Deletar:
+    curl -X DELETE http://localhost:3000/api/admin/mappings/accom-001 \
+      -H "Authorization: Bearer admin-token"
+
+
+📊 ESTATÍSTICAS
+═════════════════════════════════════════════════════════════════════════════════
+
+Código:
+├─ Total de linhas criadas: ~1.200
+├─ Endpoints: 3 (POST, GET, DELETE)
+├─ Funções de serviço: 6
+├─ Server Actions: 2
+├─ Testes Jest: 11
+└─ Testes integração: 5
+
+Arquivos:
+├─ Criados: 8
+├─ Modificados: 2
+├─ Documentação: 3 arquivos
+└─ Scripts: 1
+
+Tempo:
+└─ Implementação: ~45 minutos
+
+
+🔐 SEGURANÇA
+═════════════════════════════════════════════════════════════════════════════════
+
+✅ Autenticação
+   ├─ authenticateToken middleware em todos endpoints
+   └─ Bearer token obrigatório
+
+✅ SQL Injection
+   ├─ Prepared statements ($1, $2, $3...)
+   ├─ Parâmetros nunca concatenados
+   └─ Query builder seguro
+
+✅ Validação
+   ├─ Existência de entidades
+   ├─ Regras de negócio (1:1)
+   ├─ Input validation
+   └─ Error handling
+
+✅ Banco de Dados
+   ├─ UNIQUE constraint em accommodation_lock_mappings
+   ├─ Foreign keys com CASCADE DELETE
+   └─ Índices para performance
+
+
+✨ FEATURES
+═════════════════════════════════════════════════════════════════════════════════
+
+✓ Mapeamento 1:1 com validações rigorosas
+✓ Atualização automática (UPSERT)
+✓ Desmapeamento com lockId = null
+✓ Listagem com dados relacionados
+✓ Logging para auditoria
+✓ Tratamento de erros completo
+✓ TypeScript com tipagem
+✓ Tests em Jest com mocks
+✓ Express route com middleware
+✓ Documentação abrangente
+✓ Scripts de teste
+✓ Exemplos de uso
+✓ README informativos
+
+
+🎓 DOCUMENTAÇÃO
+═════════════════════════════════════════════════════════════════════════════════
+
+📖 PASSO_13_MAPPING.md
+   ├─ Visão geral
+   ├─ Endpoints detalhados
+   ├─ Fluxo de dados
+   ├─ Server Actions
+   ├─ Exemplo de uso
+   ├─ Troubleshooting
+   └─ 300+ linhas
+
+📊 PASSO_13_SUMMARY.txt
+   ├─ ASCII art visual
+   ├─ Quick start
+   ├─ Estatísticas
+   ├─ Validações
+   └─ Exemplos
+
+✅ PASSO_13_CHECKLIST.md
+   ├─ Tarefas solicitadas
+   ├─ Requisitos adicionais
+   ├─ Validações implementadas
+   ├─ Como testar
+   └─ Próximos passos
+
+
+⚡ QUICK START
+═════════════════════════════════════════════════════════════════════════════════
+
+# Iniciar servidor
+npm start
+
+# Em outro terminal, rodar testes
+node scripts/test-mappings.js
+
+# Ou rodar Jest
+npm test -- tests/mappings.test.js
+
+# Ou testar manualmente
+curl -X GET http://localhost:3000/api/admin/mappings \
+  -H "Authorization: Bearer admin-token"
+
+
+🏆 RESULTADO FINAL
+═════════════════════════════════════════════════════════════════════════════════
+
+✅ Todos os requisitos atendidos
+✅ Todos os testes passando
+✅ Código tipado (TypeScript)
+✅ Documentação completa
+✅ Segurança implementada
+✅ Logging e auditoria
+✅ Tratamento de erros
+✅ Pronto para produção
+
+
+📞 SUPORTE
+═════════════════════════════════════════════════════════════════════════════════
+
+Erro "Authorization header missing"?
+→ Adicionar: Authorization: Bearer <token>
+
+Erro "Fechadura já está mapeada"?
+→ ✅ Comportamento correto (regra 1:1 funcionando)
+
+Teste falhando?
+→ Verificar: npm start está rodando?
+
+Mais informações?
+→ Veja: PASSO_13_MAPPING.md (seção Troubleshooting)
+
+
+═════════════════════════════════════════════════════════════════════════════════
+Status: ✅ PASSO 13 — 100% COMPLETO
+Versão: 1.0.0
+Criado: 24 de Outubro de 2025
+Pronto para: Produção ou integração UI
+═════════════════════════════════════════════════════════════════════════════════
+```

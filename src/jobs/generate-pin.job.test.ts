@@ -190,8 +190,8 @@ describe('PIN Generator', () => {
     });
 
     it('fluxo completo: gerar múltiplos PINs, todos devem ser validáveis', async () => {
-      const pins = [];
-      const hashes = [];
+      const pins: string[] = [];
+      const hashes: string[] = [];
       
       // Gerar 5 PINs
       for (let i = 0; i < 5; i++) {

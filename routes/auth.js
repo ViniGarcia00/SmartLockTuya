@@ -346,6 +346,8 @@ router.post('/forgot-password', [
   try {
     const { email } = req.body;
 
+    console.log(`\n📨 [FORGOT-PASSWORD] Solicitação recebida para: ${email}`);
+
     const result = await query(
       'SELECT id, nome FROM users WHERE email = $1 AND ativo = true',
       [email]
@@ -353,6 +355,7 @@ router.post('/forgot-password', [
 
     // Por segurança, sempre retorna sucesso mesmo se email não existir
     if (result.rows.length === 0) {
+      console.log(`⚠️  [FORGOT-PASSWORD] Email não encontrado ou usuário inativo: ${email}`);
       return res.json({
         success: true,
         message: 'Se o email existir, você receberá instruções para redefinir a senha'
@@ -363,27 +366,99 @@ router.post('/forgot-password', [
     const tokenReset = crypto.randomBytes(32).toString('hex');
     const tokenExpira = new Date(Date.now() + 3600000); // 1 hora
 
+    console.log(`✓ [FORGOT-PASSWORD] Usuário encontrado: ${user.nome} (ID: ${user.id})`);
+    console.log(`✓ [FORGOT-PASSWORD] Token gerado: ${tokenReset.substring(0, 10)}...`);
+
     // Salva token
     await query(
       'UPDATE users SET token_reset_senha = $1, token_reset_expira = $2 WHERE id = $3',
       [tokenReset, tokenExpira, user.id]
     );
 
+    console.log(`✓ [FORGOT-PASSWORD] Token salvo no banco de dados`);
+
     // Envia email
     if (process.env.EMAIL_USER) {
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: 'Redefinição de Senha - Tuya Locks',
-        html: `
-          <h2>Redefinição de Senha</h2>
-          <p>Olá ${user.nome},</p>
-          <p>Você solicitou a redefinição de senha. Clique no link abaixo:</p>
-          <a href="${process.env.APP_URL}/reset-password.html?token=${tokenReset}">Redefinir Senha</a>
-          <p>Este link expira em 1 hora.</p>
-          <p>Se você não solicitou, ignore este email.</p>
-        `
-      });
+      console.log(`📧 [FORGOT-PASSWORD] Iniciando envio de email...`);
+      console.log(`   - Remetente: ${process.env.EMAIL_USER}`);
+      console.log(`   - Destinatário: ${email}`);
+      console.log(`   - Serviço: ${process.env.EMAIL_SERVICE}`);
+      
+      try {
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: email,
+          subject: '🔐 Redefinição de Senha - Tuya Locks',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+                <h2 style="color: white; margin: 0;">🔐 Tuya Locks</h2>
+                <p style="color: rgba(255,255,255,0.9); margin: 0;">Redefinir Senha</p>
+              </div>
+              
+              <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">
+                <h3 style="color: #333;">Olá ${user.nome},</h3>
+                
+                <p style="color: #666; line-height: 1.6;">
+                  Você solicitou a redefinição de sua senha. Clique no botão abaixo para criar uma nova senha:
+                </p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${process.env.APP_URL}/reset-password.html?token=${tokenReset}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 40px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
+                    Redefinir Minha Senha
+                  </a>
+                </div>
+                
+                <p style="color: #999; font-size: 12px;">
+                  Ou copie e cole este link no seu navegador:<br>
+                  <span style="word-break: break-all; color: #667eea;">${process.env.APP_URL}/reset-password.html?token=${tokenReset}</span>
+                </p>
+                
+                <div style="background: #f8f9fa; padding: 15px; border-left: 4px solid #667eea; margin: 20px 0; border-radius: 4px;">
+                  <p style="margin: 0; color: #666; font-size: 13px;">
+                    <strong>⏰ Atenção:</strong> Este link expira em <strong>1 hora</strong>. Se você não solicitou, ignore este email e sua senha permanecerá segura.
+                  </p>
+                </div>
+                
+                <p style="color: #999; font-size: 12px; margin-top: 30px; border-top: 1px solid #e9ecef; padding-top: 20px;">
+                  Este é um email automático. Não responda a este email.
+                </p>
+              </div>
+            </div>
+          `
+        };
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`✅ [FORGOT-PASSWORD] Email enviado com sucesso!`);
+        console.log(`   - Message ID: ${info.messageId}`);
+        console.log(`   - Response: ${info.response}`);
+
+      } catch (emailError) {
+        console.error(`❌ [FORGOT-PASSWORD] Erro ao enviar email:`);
+        console.error(`   - Mensagem: ${emailError.message}`);
+        console.error(`   - Code: ${emailError.code}`);
+        console.error(`   - Stack:`, emailError.stack);
+        
+        // Log completo para debug
+        console.error(`\n🔍 Debug Info:`);
+        console.error(`   - EMAIL_SERVICE: ${process.env.EMAIL_SERVICE}`);
+        console.error(`   - EMAIL_HOST: ${process.env.EMAIL_HOST}`);
+        console.error(`   - EMAIL_PORT: ${process.env.EMAIL_PORT}`);
+        console.error(`   - EMAIL_USER: ${process.env.EMAIL_USER}`);
+        console.error(`   - APP_URL: ${process.env.APP_URL}`);
+        
+        // Mesmo com erro, retorna sucesso por segurança
+        return res.json({
+          success: true,
+          message: 'Se o email existir, você receberá instruções para redefinir a senha',
+          debug: process.env.NODE_ENV === 'development' ? {
+            emailError: emailError.message,
+            note: 'Email não foi enviado - verifique logs do servidor'
+          } : undefined
+        });
+      }
+    } else {
+      console.warn(`⚠️  [FORGOT-PASSWORD] EMAIL_USER não configurado - email não será enviado`);
     }
 
     res.json({
@@ -392,7 +467,10 @@ router.post('/forgot-password', [
     });
 
   } catch (error) {
-    console.error('Erro ao solicitar reset:', error);
+    console.error('❌ [FORGOT-PASSWORD] Erro geral ao processar solicitação:');
+    console.error(`   - Erro: ${error.message}`);
+    console.error(`   - Stack:`, error.stack);
+    
     res.status(500).json({
       success: false,
       error: 'Erro ao processar solicitação'
