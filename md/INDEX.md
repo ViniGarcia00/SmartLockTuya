@@ -9,7 +9,7 @@
 ### 🚀 Comece por aqui
 - **[QUICK_START.md](QUICK_START.md)** — 5 minutos para começar
 - **[README_VISAO_GERAL.md](README_VISAO_GERAL.md)** — Visão geral completa do projeto
-- **[PASSO8_LOCK_ADAPTER.md](PASSO8_LOCK_ADAPTER.md)** — Documentação PASSO 8 (NOVO)
+- **[PASSO9_PIN_GENERATION.md](../src/jobs/PASSO9_PIN_GENERATION.md)** — Documentação PASSO 9 (NOVO - 100% Completo!)
 
 ---
 
@@ -43,7 +43,10 @@
 - [PASSO8_LOCK_ADAPTER.md](PASSO8_LOCK_ADAPTER.md) — Guia técnico
 - [PASSO8_FINAL.txt](PASSO8_FINAL.txt) — Sumário visual
 
----
+### ✅ PASSO 9 — Geração de PIN (Completo)
+- [PASSO9_PIN_GENERATION.md](../src/jobs/PASSO9_PIN_GENERATION.md) — Guia técnico completo
+- Implementação: `src/jobs/generate-pin.job.ts` (355 linhas)
+- Testes: `src/jobs/generate-pin.integration.test.ts` (8/8 passing)
 
 ## � Progresso Geral
 
