@@ -25,12 +25,14 @@
 import { Job } from 'bullmq';
 import { PrismaClient } from '@prisma/client';
 import { generateRandomPin, hashPin } from '../lib/pin-generator';
+import { LockProviderFactory } from '../lib/lock-provider-factory';
 
 // Tipos para o job
 export interface GeneratePinJobData {
   reservationId: string;
   lockId: string;
   checkOutAt: string; // ISO datetime string
+  requestId?: string; // Para rastreamento em logs
 }
 
 export interface GeneratePinJobResult {
@@ -40,6 +42,7 @@ export interface GeneratePinJobResult {
   hash?: string;
   validFrom?: string;
   validTo?: string;
+  lockProviderResponse?: any; // Resposta do lock provider
   error?: string;
 }
 
@@ -60,11 +63,12 @@ export async function processGeneratePin(
   job: Job<GeneratePinJobData>
 ): Promise<GeneratePinJobResult> {
   const prisma = new PrismaClient();
+  const requestId = job.data.requestId || job.id || 'unknown';
   
   try {
     const { reservationId, lockId, checkOutAt } = job.data;
     
-    console.log(`[Generate PIN] Iniciando para reserva ${reservationId}`);
+    console.log(`[Generate PIN] [${requestId}] Iniciando para reserva ${reservationId}`);
     
     // =====================================================================
     // PASSO 1: Validar dados do job
@@ -107,8 +111,9 @@ export async function processGeneratePin(
     });
     
     if (!accommodationLock) {
+      // DLQ: Lock não mapeado para esta acomodação
       throw new Error(
-        `Lock ${lockId} is not associated with accommodation ${reservation.accommodationId}`
+        `Lock ${lockId} is not associated with accommodation ${reservation.accommodationId} (DLQ)`
       );
     }
     
@@ -133,32 +138,84 @@ export async function processGeneratePin(
         },
       });
       
-      console.log(`[Generate PIN] Credencial anterior revogada: ${existingCredential.id}`);
+      console.log(`[Generate PIN] [${requestId}] Credencial anterior revogada: ${existingCredential.id}`);
     }
     
     // =====================================================================
     // PASSO 4: Gerar PIN aleatório
     // =====================================================================
     const plainPin = generateRandomPin();
-    console.log(`[Generate PIN] PIN gerado: ${plainPin}`);
+    console.log(`[Generate PIN] [${requestId}] PIN gerado: ${plainPin}`);
     
     // =====================================================================
     // PASSO 5: Hash PIN com bcrypt
     // =====================================================================
     const hashedPin = await hashPin(plainPin);
-    console.log(`[Generate PIN] PIN hasheado com bcrypt`);
+    console.log(`[Generate PIN] [${requestId}] PIN hasheado com bcrypt`);
     
     // =====================================================================
-    // PASSO 6: Salvar em Credential
+    // PASSO 6: Chamar Lock Provider para criar PIN temporário
     // =====================================================================
+    let lockProviderResponse: any = null;
     const now = new Date();
     
-    const credential = await prisma.credential.create({
-      data: {
+    try {
+      const lockProvider = LockProviderFactory.create();
+      console.log(`[Generate PIN] [${requestId}] Chamando lockProvider.createTimedPin()`);
+      
+      lockProviderResponse = await lockProvider.createTimedPin(
+        lockId,
+        plainPin,
+        now,
+        checkOutDate
+      );
+      
+      console.log(`[Generate PIN] [${requestId}] ✅ Lock provider retornou:`, lockProviderResponse);
+    } catch (lockError) {
+      console.error(`[Generate PIN] [${requestId}] ❌ Erro ao chamar lock provider:`, lockError);
+      
+      // Log do erro do lock provider
+      await prisma.auditLog.create({
+        data: {
+          action: 'LOCK_PROVIDER_ERROR',
+          entity: 'Lock',
+          entityId: lockId,
+          userId: 'system-pin-generator',
+          details: {
+            error: lockError instanceof Error ? lockError.message : String(lockError),
+            requestId: requestId,
+            reservationId: reservationId,
+          },
+        },
+      });
+      
+      // Re-lançar para trigger de retry automático
+      throw new Error(`Lock provider failed: ${lockError instanceof Error ? lockError.message : String(lockError)}`);
+    }
+    
+    // =====================================================================
+    // PASSO 7: Salvar ou atualizar Credential
+    // =====================================================================
+    const credential = await prisma.credential.upsert({
+      where: {
+        reservationId_lockId: {
+          reservationId: reservationId,
+          lockId: lockId,
+        },
+      },
+      update: {
+        pin: hashedPin,
+        plainPin: plainPin,
+        status: 'ACTIVE',
+        validFrom: now,
+        validTo: checkOutDate,
+        revokedAt: null, // Limpar revogação anterior
+      },
+      create: {
         reservationId: reservationId,
         lockId: lockId,
         pin: hashedPin,
-        plainPin: plainPin, // Armazenar temporariamente para envio ao hóspede
+        plainPin: plainPin,
         status: 'ACTIVE',
         validFrom: now,
         validTo: checkOutDate,
@@ -166,14 +223,14 @@ export async function processGeneratePin(
       },
     });
     
-    console.log(`[Generate PIN] ✅ PIN gerado para reserva ${reservationId}`);
+    console.log(`[Generate PIN] [${requestId}] ✅ PIN criado com sucesso`);
     console.log(`  Credential ID: ${credential.id}`);
     console.log(`  Lock ID: ${lockId}`);
     console.log(`  Valid From: ${credential.validFrom.toISOString()}`);
     console.log(`  Valid To: ${credential.validTo.toISOString()}`);
     
     // =====================================================================
-    // PASSO 7: Log de auditoria
+    // PASSO 8: Log de auditoria
     // =====================================================================
     await prisma.auditLog.create({
       data: {
@@ -182,16 +239,18 @@ export async function processGeneratePin(
         entityId: credential.id,
         userId: 'system-pin-generator',
         details: {
+          requestId: requestId,
           reservationId: reservationId,
           lockId: lockId,
           validFrom: credential.validFrom.toISOString(),
           validTo: credential.validTo.toISOString(),
+          lockProviderStatus: lockProviderResponse?.success,
         },
       },
     });
     
     // =====================================================================
-    // PASSO 8: Retornar resultado
+    // PASSO 9: Retornar resultado
     // =====================================================================
     return {
       success: true,
@@ -200,33 +259,107 @@ export async function processGeneratePin(
       hash: hashedPin,
       validFrom: credential.validFrom.toISOString(),
       validTo: credential.validTo.toISOString(),
+      lockProviderResponse: lockProviderResponse,
     };
     
   } catch (error) {
-    console.error('[Generate PIN] ❌ Erro ao gerar PIN:', error);
+    console.error(`[Generate PIN] [${requestId}] ❌ Erro ao gerar PIN:`, error);
     
-    // Log de erro em auditoria
-    try {
-      await prisma.auditLog.create({
-        data: {
-          action: 'CREATE_CREDENTIAL_ERROR',
-          entity: 'Credential',
-          entityId: job.data.reservationId,
-          userId: 'system-pin-generator',
-          details: {
-            error: error instanceof Error ? error.message : String(error),
-            jobId: job.id,
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isDLQError = errorMessage.includes('DLQ');
+    
+    // =====================================================================
+    // Tratamento de Erro: DLQ vs Retry
+    // =====================================================================
+    
+    if (isDLQError) {
+      // Lock não mapeado → Dead Letter Queue (sem retry)
+      console.error(`[Generate PIN] [${requestId}] 📛 ERRO CRÍTICO - Enviando para DLQ: ${errorMessage}`);
+      
+      try {
+        await prisma.auditLog.create({
+          data: {
+            action: 'CREATE_CREDENTIAL_DLQ',
+            entity: 'Credential',
+            entityId: job.data.reservationId,
+            userId: 'system-pin-generator',
+            details: {
+              requestId: requestId,
+              error: errorMessage,
+              jobId: job.id,
+              attempts: job.attemptsMade,
+              reason: 'Lock not mapped to accommodation',
+            },
           },
-        },
-      });
-    } catch (auditError) {
-      console.error('[Generate PIN] Erro ao criar audit log:', auditError);
+        });
+      } catch (auditError) {
+        console.error(`[Generate PIN] [${requestId}] Erro ao criar audit log de DLQ:`, auditError);
+      }
+      
+      // Retornar falha sem retry
+      return {
+        success: false,
+        error: `[DLQ] ${errorMessage}`,
+      };
+    } else {
+      // Erro de lock provider ou outro → Retry automático (até 3x)
+      const attempts = (job.attemptsMade || 0) + 1;
+      const maxRetries = 3;
+      
+      console.warn(`[Generate PIN] [${requestId}] ⚠️ Tentativa ${attempts}/${maxRetries}: ${errorMessage}`);
+      
+      try {
+        await prisma.auditLog.create({
+          data: {
+            action: 'CREATE_CREDENTIAL_RETRY',
+            entity: 'Credential',
+            entityId: job.data.reservationId,
+            userId: 'system-pin-generator',
+            details: {
+              requestId: requestId,
+              error: errorMessage,
+              jobId: job.id,
+              attempt: attempts,
+              maxRetries: maxRetries,
+            },
+          },
+        });
+      } catch (auditError) {
+        console.error(`[Generate PIN] [${requestId}] Erro ao criar audit log de retry:`, auditError);
+      }
+      
+      // Se atingiu max retries, mover para DLQ
+      if (attempts >= maxRetries) {
+        console.error(`[Generate PIN] [${requestId}] 📛 Max retries atingido. Movendo para DLQ.`);
+        
+        try {
+          await prisma.auditLog.create({
+            data: {
+              action: 'CREATE_CREDENTIAL_FAILED_DLQ',
+              entity: 'Credential',
+              entityId: job.data.reservationId,
+              userId: 'system-pin-generator',
+              details: {
+                requestId: requestId,
+                error: errorMessage,
+                jobId: job.id,
+                finalAttempt: attempts,
+              },
+            },
+          });
+        } catch (auditError) {
+          console.error(`[Generate PIN] [${requestId}] Erro ao criar audit log de failed DLQ:`, auditError);
+        }
+        
+        return {
+          success: false,
+          error: `Failed after ${maxRetries} retries: ${errorMessage}`,
+        };
+      }
+      
+      // Lançar erro para trigger de retry automático pelo BullMQ
+      throw error;
     }
-    
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
     
   } finally {
     await prisma.$disconnect();
